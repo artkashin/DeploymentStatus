@@ -1,0 +1,12 @@
+{
+  "name": "deployment-dashboard",
+  "version": "1.0.0",
+  "description": "Azure Static Web App dashboard for deployment tracking",
+  "scripts": {
+    "start": "python -m http.server 8080 --directory DeploymentDashboard",
+    "start:windows": "cd DeploymentDashboard && python -m http.server 8080"
+  },
+  "keywords": ["azure", "static-web-app", "deployment", "dashboard"],
+  "author": "",
+  "license": "MIT"
+}

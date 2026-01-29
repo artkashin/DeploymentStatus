@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deployment Status Dashboard</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>Business Central Deployment Dashboard</h1>
+            <div class="header-actions">
+                <button id="refreshBtn" class="btn btn-primary">
+                    Refresh
+                </button>
+                <div class="last-updated">
+                    Last updated: <span id="lastUpdated">Never</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- CI/CD Version Panel -->
+        <section class="cicd-panel">
+            <div class="panel-header">
+                <h2>CI/CD Version</h2>
+                <button id="updateCiCdBtn" class="btn btn-secondary">Update Version</button>
+            </div>
+            <div class="cicd-info">
+                <div class="version-display">
+                    <span class="label">Current Version:</span>
+                    <span id="cicdVersion" class="version">Loading...</span>
+                </div>
+                <div class="version-meta">
+                    <span id="cicdUpdatedAt"></span>
+                    <span id="cicdUpdatedBy"></span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Summary Stats -->
+        <section class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="totalClients">0</div>
+                <div class="stat-label">Total Clients</div>
+            </div>
+            <div class="stat-card stat-success">
+                <div class="stat-value" id="upToDateClients">0</div>
+                <div class="stat-label">Up-to-Date</div>
+            </div>
+            <div class="stat-card stat-warning">
+                <div class="stat-value" id="outdatedClients">0</div>
+                <div class="stat-label">Behind CI/CD</div>
+            </div>
+            <div class="stat-card stat-info">
+                <div class="stat-value" id="totalApps">0</div>
+                <div class="stat-label">Total Applications</div>
+            </div>
+        </section>
+
+        <!-- Clients List -->
+        <section class="clients-section">
+            <h2>Client Deployment Status</h2>
+            <div id="clientsList" class="clients-list">
+                <div class="loading">Loading clients...</div>
+            </div>
+        </section>
+
+        <!-- Deployment History -->
+        <section class="history-section">
+            <div class="section-header">
+                <h2>Recent Deployments</h2>
+                <select id="clientFilter" class="filter-select">
+                    <option value="">All Clients</option>
+                </select>
+            </div>
+            <div id="historyList" class="history-list">
+                <div class="loading">Loading history...</div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Update CI/CD Modal -->
+    <div id="updateCiCdModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Update CI/CD Version</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="updateCiCdForm">
+                <div class="form-group">
+                    <label for="newVersion">New Version</label>
+                    <input type="text" id="newVersion" name="version" placeholder="e.g., 1.4.0" required>
+                </div>
+                <div class="form-group">
+                    <label for="updatedBy">Updated By</label>
+                    <input type="text" id="updatedBy" name="updatedBy" placeholder="Your name" required>
+                </div>
+                <div class="form-group">
+                    <label for="notes">Notes (optional)</label>
+                    <textarea id="notes" name="notes" rows="3" placeholder="Release notes..."></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

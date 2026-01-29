@@ -1,0 +1,8 @@
+*.cs
+*.csproj
+.git*
+.vscode
+local.settings.json
+test
+obj
+bin
