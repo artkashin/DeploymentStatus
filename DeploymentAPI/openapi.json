@@ -1,0 +1,263 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Deployment Status API",
+    "description": "API for managing deployment status, CI/CD versions, and GitHub workflow integration",
+    "version": "v1",
+    "contact": {
+      "name": "Deployment Status Team",
+      "email": "support@example.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://func-deployment-status-api-g0egd2dbc9d9c2d9.eastus2-01.azurewebsites.net/api",
+      "description": "Production"    },
+    {
+      "url": "http://localhost:7071/api",
+      "description": "Local Development"
+    }
+  ],
+  "paths": {
+    "/clients/status": {
+      "get": {
+        "tags": ["Clients"],
+        "summary": "Get status of all clients",
+        "description": "Retrieves the deployment status for all registered clients",
+        "operationId": "GetAllClientsStatus",
+        "security": [{ "function_key": [] }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "totalClients": { "type": "integer" },
+                    "deployedClients": { "type": "integer" },
+                    "clients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "clientId": { "type": "string" },
+                          "clientName": { "type": "string" },
+                          "currentVersion": { "type": "string" },
+                          "lastDeploymentDate": { "type": "string", "format": "date-time" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": { "description": "Internal Server Error" }
+        }
+      }
+    },
+    "/clients/{clientId}/status": {
+      "get": {
+        "tags": ["Clients"],
+        "summary": "Get client status",
+        "description": "Retrieves deployment status for a specific client",
+        "operationId": "GetClientStatus",
+        "security": [{ "function_key": [] }],
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Success" },
+          "404": { "description": "Client not found" },
+          "500": { "description": "Internal Server Error" }
+        }
+      }
+    },
+    "/applications": {
+      "get": {
+        "tags": ["Applications"],
+        "summary": "Get all applications",
+        "description": "Retrieves all registered applications",
+        "operationId": "GetApplications",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "applicationId": { "type": "string" },
+                      "applicationName": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/customers": {
+      "get": {
+        "tags": ["Customers"],
+        "summary": "Get all customers",
+        "description": "Retrieves all registered customers",
+        "operationId": "GetCustomers",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "customerId": { "type": "string" },
+                      "customerName": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/update-all-customers/latest": {
+      "get": {
+        "tags": ["Workflows"],
+        "summary": "Get latest workflow status",
+        "description": "Retrieves the latest 'Update all customers' workflow run status with customer installation details",
+        "operationId": "GetLatestUpdateCustomersStatus",
+        "security": [{ "function_key": [] }],
+        "responses": {
+          "200": { "description": "Success" },
+          "500": { "description": "Internal Server Error" }
+        }
+      }
+    },
+    "/workflow-runs/{runId}/customer-status": {
+      "get": {
+        "tags": ["Workflows"],
+        "summary": "Get workflow customer status",
+        "description": "Retrieves customer installation status for a specific workflow run",
+        "operationId": "GetWorkflowRunCustomerStatus",
+        "security": [{ "function_key": [] }],
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Success" },
+          "404": { "description": "Workflow run not found" },
+          "500": { "description": "Internal Server Error" }
+        }
+      }
+    },
+    "/deployments": {
+      "post": {
+        "tags": ["Deployments"],
+        "summary": "Register deployment",
+        "description": "Registers a new deployment for a client",
+        "operationId": "RegisterDeployment",
+        "security": [{ "function_key": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "clientId": { "type": "string" },
+                  "version": { "type": "string" },
+                  "deployedBy": { "type": "string" },
+                  "notes": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Success" },
+          "400": { "description": "Bad Request" },
+          "500": { "description": "Internal Server Error" }
+        }
+      }
+    },
+    "/admin/initialize": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Initialize database",
+        "description": "Initialize database with sample data",
+        "operationId": "InitializeDatabase",
+        "security": [{ "function_key": [] }],
+        "responses": {
+          "200": { "description": "Success" },
+          "500": { "description": "Internal Server Error" }
+        }
+      }
+    },
+    "/admin/initialize/status": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Get initialization status",
+        "description": "Check if database has been initialized",
+        "operationId": "GetInitializationStatus",
+        "security": [{ "function_key": [] }],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "function_key": {
+        "type": "apiKey",
+        "name": "code",
+        "in": "query",
+        "description": "Azure Functions function key (pass as ?code=YOUR_KEY)"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Clients",
+      "description": "Client deployment status operations"
+    },
+    {
+      "name": "Applications",
+      "description": "Application management operations"
+    },
+    {
+      "name": "Customers",
+      "description": "Customer management operations"
+    },
+    {
+      "name": "Workflows",
+      "description": "GitHub workflow integration"
+    },
+    {
+      "name": "Deployments",
+      "description": "Deployment registration"
+    },
+    {
+      "name": "Admin",
+      "description": "Administrative operations"
+    }
+  ]
+}

@@ -194,11 +194,24 @@ Invoke-RestMethod -Uri "$baseUrl/clients/client-001/status"
 
 ## Documentation
 
+### Local Development
 - **QUICK-START.md** - Quick reference guide
 - **CHEATSHEET.md** - Command cheat sheet
 - **ARCHITECTURE-STORAGE.md** - Storage architecture details
 - **STORAGE-SETUP.md** - Azure Storage setup guide
 - **AZURE-STORAGE-INTEGRATION.md** - Table Storage integration
+
+### Dashboard
+- **DASHBOARD-PRODUCTION-CONFIG.md** - Production API configuration for dashboard
+- **DeploymentDashboard/README.md** - Dashboard setup and deployment
+
+### Azure Deployment
+- **AZURE-QUICK-START.md** - **START HERE:** 5-step deployment guide
+- **AZURE-DEPLOYMENT.md** - Complete guide to deploying to Azure Functions
+- **AZURE-CONFIGURATION.md** - Production configuration templates and secrets management
+- **AZURE-ENV-VAR-FORMAT.md** - **IMPORTANT:** Environment variable naming (use `__` not `:`)
+- **AZURE-FLEX-PLAN-SETUP.md** - **Flex Consumption Plan:** Omit FUNCTIONS_WORKER_RUNTIME
+- **DeploymentAPI/WORKFLOW-CUSTOMER-STATUS-API.md** - Workflow customer status API documentation
 
 ---
 

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Workflow Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .success { color: green; }
+        .error { color: red; }
+        pre { background: #f4f4f4; padding: 10px; overflow: auto; }
+    </style>
+</head>
+<body>
+    <h1>Workflow Status Test</h1>
+    <button onclick="testEndpoint()">Test Workflow Endpoint</button>
+    <div id="result"></div>
+
+    <script>
+        // Auto-detect API URL based on environment
+        const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:7071/api'
+            : 'https://func-deployment-status-api-g0egd2dbc9d9c2d9.eastus2-01.azurewebsites.net/api';
+
+        async function testEndpoint() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `<p>Testing ${API_URL}...</p>`;
+
+            try {
+                const response = await fetch(`${API_URL}/update-all-customers/latest`);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                resultDiv.innerHTML = `
+                    <h2 class="success">✓ Success!</h2>
+                    <p><strong>API URL:</strong> ${API_URL}</p>
+                    <p><strong>Run #${data.runNumber}</strong> - ${data.workflowName}</p>
+                    <p>Status: ${data.status}</p>
+                    <p>Total Customers: ${data.totalCustomers}</p>
+                    <p>Successful: ${data.successfulInstallations}</p>
+                    <p>Failed: ${data.failedInstallations}</p>
+                    <h3>Full Response:</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <h2 class="error">✗ Error</h2>
+                    <p><strong>API URL:</strong> ${API_URL}</p>
+                    <p>${error.message}</p>
+                    <p>Make sure the API is accessible and CORS is configured.</p>
+                    <p>Check the browser console (F12) for more details.</p>
+                `;
+                console.error('Test failed:', error);
+            }
+        }
+
+        // Auto-run on load
+        window.addEventListener('load', testEndpoint);
+    </script>
+</body>
+</html>

@@ -23,10 +23,20 @@ python -m http.server 8080
 
 ## Configuration
 
-Set API endpoint in `js/config.js`:
+The dashboard automatically detects the environment and uses the appropriate API endpoint:
+
+**Edit** `js/config.js`:
 ```javascript
-const API_BASE_URL = 'http://localhost:7071/api';
+const API_CONFIG = {
+    // Auto-detects: localhost uses local API, production uses Azure Functions
+    baseUrl: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? 'http://localhost:7071/api'  // Local development
+        : 'https://func-deployment-status-api-g0egd2dbc9d9c2d9.eastus2-01.azurewebsites.net/api',  // Production
+};
 ```
+
+**Production API:** `https://func-deployment-status-api-g0egd2dbc9d9c2d9.eastus2-01.azurewebsites.net/api`  
+**Local API:** `http://localhost:7071/api`
 
 ## Project Structure
 

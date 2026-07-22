@@ -404,6 +404,18 @@ FodyWeavers.xsd
 local.settings.json
 local.settings.*.json
 
+# GitHub App secrets
+secrets/
+*.pem
+*.key
+
+##
+## Security - Never commit these!
+##
+# GitHub tokens and private keys
+github-app-*.pem
+*-private-key.pem
+
 # Azure Functions binaries
 bin/
 obj/
@@ -498,6 +510,17 @@ TestResults/
 # Temporary files
 *.tmp
 temp/
+
+##
+## Security and Secrets
+##
+
+# GitHub App private keys
+.security/
+*.pem
+*.key
+secrets/
+!secrets/README.md
 tmp/
 
 ##

@@ -7,6 +7,22 @@
                 "excludedTypes": "Request"
             },
             "enableLiveMetricsFilters": true
+        },
+        "logLevel": {
+            "default": "Information",
+            "DeploymentAPI": "Trace",
+            "DeploymentAPI.Services": "Trace"
         }
+    },
+    "extensions": {
+        "http": {
+            "routePrefix": "api"
+        }
+    },
+    "cors": {
+        "allowCredentials": false,
+        "allowedOrigins": [
+            "*"
+        ]
     }
 }

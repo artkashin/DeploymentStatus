@@ -1,0 +1,93 @@
+name: OpenAPI CI/CD
+
+on:
+  push:
+    branches: [ develop, main ]
+  pull_request:
+    branches: [ develop, main ]
+
+jobs:
+  openapi-workflow:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET 8
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore DeploymentAPI/DeploymentAPI.csproj
+
+    - name: Build project
+      run: dotnet build DeploymentAPI/DeploymentAPI.csproj --configuration Release --no-restore
+
+    - name: Validate OpenAPI Spec
+      run: |
+        npm install -g @stoplight/spectral-cli
+        spectral lint DeploymentAPI/openapi.json || echo "Spectral linting completed with warnings"
+
+    - name: Check for Breaking Changes
+      if: github.event_name == 'pull_request'
+      run: |
+        # Download main branch version
+        git show origin/main:DeploymentAPI/openapi.json > openapi-main.json 2>/dev/null || echo '{"openapi":"3.0.0","info":{"title":"","version":"1.0.0"},"paths":{}}' > openapi-main.json
+
+        # Install and run openapi-diff
+        npm install -g openapi-diff
+        openapi-diff openapi-main.json DeploymentAPI/openapi.json > api-changes.txt || true
+
+        echo "## API Changes" >> $GITHUB_STEP_SUMMARY
+        cat api-changes.txt >> $GITHUB_STEP_SUMMARY
+
+    - name: Generate TypeScript Client
+      run: |
+        npx @openapitools/openapi-generator-cli generate \
+          -i DeploymentAPI/openapi.json \
+          -g typescript-fetch \
+          -o ./clients/typescript \
+          --additional-properties=supportsES6=true,typescriptThreePlus=true
+
+    - name: Generate C# Client
+      run: |
+        dotnet tool install --global NSwag.ConsoleCore
+        nswag openapi2csclient \
+          /input:DeploymentAPI/openapi.json \
+          /classname:DeploymentApiClient \
+          /namespace:DeploymentAPI.Client \
+          /output:./clients/csharp/DeploymentApiClient.cs
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: openapi-and-clients
+        path: |
+          DeploymentAPI/openapi.json
+          clients/
+
+    - name: Commit OpenAPI Spec (main branch only)
+      if: github.ref == 'refs/heads/main'
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+        git add DeploymentAPI/openapi.json
+        git commit -m "chore: update OpenAPI specification [skip ci]" || echo "No changes"
+        git push
+
+    - name: Create API Documentation
+      run: |
+        npx redoc-cli bundle DeploymentAPI/openapi.json -o api-documentation.html
+
+    - name: Deploy Documentation to GitHub Pages
+      if: github.ref == 'refs/heads/main'
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./
+        destination_dir: api-docs
+        enable_jekyll: false

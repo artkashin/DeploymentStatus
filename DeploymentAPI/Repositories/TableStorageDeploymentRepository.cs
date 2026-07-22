@@ -11,6 +11,9 @@ public class TableStorageDeploymentRepository : IDeploymentRepository
     private readonly TableClient _deploymentsTable;
     private readonly TableClient _deploymentHistoryTable;
     private readonly TableClient _cicdVersionTable;
+    private readonly TableClient _customersTable;
+    private readonly TableClient _applicationsTable;
+    private readonly TableClient _customerApplicationsTable;
     private readonly ILogger<TableStorageDeploymentRepository> _logger;
 
     public TableStorageDeploymentRepository(
@@ -23,13 +26,19 @@ public class TableStorageDeploymentRepository : IDeploymentRepository
         _deploymentsTable = new TableClient(connectionString, "Deployments");
         _deploymentHistoryTable = new TableClient(connectionString, "DeploymentHistory");
         _cicdVersionTable = new TableClient(connectionString, "CiCdVersion");
+        _customersTable = new TableClient(connectionString, "Customers");
+        _applicationsTable = new TableClient(connectionString, "Applications");
+        _customerApplicationsTable = new TableClient(connectionString, "CustomerApplications");
 
         // Create tables if they don't exist
         _deploymentsTable.CreateIfNotExists();
         _deploymentHistoryTable.CreateIfNotExists();
         _cicdVersionTable.CreateIfNotExists();
+        _customersTable.CreateIfNotExists();
+        _applicationsTable.CreateIfNotExists();
+        _customerApplicationsTable.CreateIfNotExists();
 
-        _logger.LogInformation("TableStorageDeploymentRepository initialized with Deployments + DeploymentHistory tables");
+        _logger.LogInformation("TableStorageDeploymentRepository initialized with 6 tables: Deployments, DeploymentHistory, CiCdVersion, Customers, Applications, CustomerApplications");
     }
 
     public async Task RegisterDeploymentAsync(DeploymentRecord deployment)
@@ -95,49 +104,55 @@ public class TableStorageDeploymentRepository : IDeploymentRepository
     {
         try
         {
-            // Query current deployments for this client (from Deployments table)
-            var query = _deploymentsTable.QueryAsync<DeploymentEntity>(
-                filter: $"PartitionKey eq '{clientId}'");
-
-            var deployments = new List<DeploymentEntity>();
-            await foreach (var entity in query)
-            {
-                deployments.Add(entity);
-            }
-
-            if (!deployments.Any())
+            // Get customer entity
+            var customer = await GetCustomerAsync(clientId);
+            if (customer == null)
                 return null;
 
-            var clientName = deployments.First().ClientName;
-
-            // Convert to application statuses
-            var applicationGroups = deployments
-                .Select(d => new ApplicationStatus
-                {
-                    ApplicationId = d.ApplicationId,
-                    ApplicationName = d.ApplicationName,
-                    CurrentVersion = d.Version,
-                    LastDeploymentTime = d.DeploymentTime,
-                    LastDeploymentStatus = (DeploymentStatus)d.Status
-                })
-                .ToList();
-
-            var versions = applicationGroups
-                .Where(a => !string.IsNullOrEmpty(a.CurrentVersion))
-                .Select(a => a.CurrentVersion!)
-                .ToList();
+            // Get all applications for this customer
+            var customerApps = await GetCustomerApplicationsAsync(clientId);
+            if (!customerApps.Any())
+                return null;
 
             // Get current CI/CD version
             var cicdVersion = await GetCurrentCiCdVersionAsync();
+            var cicdTargetVersion = cicdVersion?.Version;
+
+            // Convert to application status details
+            var applicationDetails = customerApps
+                .Select(ca => new ApplicationStatusDetail
+                {
+                    ApplicationId = ca.ApplicationId,
+                    ApplicationName = ca.ApplicationName,
+                    InstalledVersion = ca.InstalledVersion,
+                    InstalledAt = ca.InstalledAt,
+                    LatestVersion = ca.LatestVersion,
+                    CiCdTargetVersion = cicdTargetVersion,
+                    Status = ca.Status,
+                    LastDeploymentTime = ca.LastDeploymentAttempt,
+                    IsUpToDate = !string.IsNullOrEmpty(ca.InstalledVersion) && 
+                                 ca.InstalledVersion == cicdTargetVersion,
+                    IsBehind = !string.IsNullOrEmpty(ca.InstalledVersion) && 
+                               !string.IsNullOrEmpty(cicdTargetVersion) &&
+                               ca.InstalledVersion != cicdTargetVersion
+                })
+                .ToList();
+
+            var versions = applicationDetails
+                .Where(a => !string.IsNullOrEmpty(a.InstalledVersion))
+                .Select(a => a.InstalledVersion!)
+                .ToList();
 
             return new ClientStatusResponse
             {
-                ClientId = clientId,
-                ClientName = clientName,
+                ClientId = customer.CustomerId,
+                ClientName = customer.CustomerName,
+                CreatedAt = customer.CreatedAt,
+                Status = customer.Status,
                 MaxVersion = versions.Any() ? versions.Max() : null,
                 MinVersion = versions.Any() ? versions.Min() : null,
-                CiCdVersion = cicdVersion?.Version,
-                Applications = applicationGroups
+                CiCdVersion = cicdTargetVersion,
+                Applications = applicationDetails
             };
         }
         catch (Exception ex)
@@ -151,20 +166,14 @@ public class TableStorageDeploymentRepository : IDeploymentRepository
     {
         try
         {
-            // Get all unique client IDs from current deployments
-            var allDeployments = _deploymentsTable.QueryAsync<DeploymentEntity>();
-            var clientIds = new HashSet<string>();
-
-            await foreach (var entity in allDeployments)
-            {
-                clientIds.Add(entity.ClientId);
-            }
+            // Get all customers from the Customers table
+            var customers = await GetAllCustomersAsync();
 
             var clientStatuses = new List<ClientStatusResponse>();
 
-            foreach (var clientId in clientIds)
+            foreach (var customer in customers)
             {
-                var status = await GetClientStatusAsync(clientId);
+                var status = await GetClientStatusAsync(customer.CustomerId);
                 if (status != null)
                 {
                     clientStatuses.Add(status);
@@ -251,11 +260,196 @@ public class TableStorageDeploymentRepository : IDeploymentRepository
             if (!response.HasValue)
                 return null;
 
-            return response.Value.ToCiCdVersion();
+            return response.Value?.ToCiCdVersion();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting CI/CD version from Table Storage");
+            throw;
+        }
+    }
+
+    // Customer Management Methods
+    public async Task<CustomerEntity?> GetCustomerAsync(string customerId)
+    {
+        try
+        {
+            var response = await _customersTable.GetEntityIfExistsAsync<CustomerEntity>(
+                partitionKey: "Customer",
+                rowKey: customerId);
+
+            return response.HasValue ? response.Value : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting customer {CustomerId}", customerId);
+            throw;
+        }
+    }
+
+    public async Task<List<CustomerEntity>> GetAllCustomersAsync()
+    {
+        try
+        {
+            var customers = new List<CustomerEntity>();
+            var query = _customersTable.QueryAsync<CustomerEntity>(filter: $"PartitionKey eq 'Customer'");
+
+            await foreach (var customer in query)
+            {
+                customers.Add(customer);
+            }
+
+            return customers;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting all customers");
+            throw;
+        }
+    }
+
+    public async Task UpsertCustomerAsync(CustomerEntity customer)
+    {
+        try
+        {
+            customer.UpdatedAt = DateTime.UtcNow;
+            await _customersTable.UpsertEntityAsync(customer, TableUpdateMode.Replace);
+            _logger.LogInformation("Upserted customer {CustomerId}", customer.CustomerId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error upserting customer {CustomerId}", customer.CustomerId);
+            throw;
+        }
+    }
+
+    // Application Management Methods
+    public async Task<ApplicationEntity?> GetApplicationAsync(string applicationId)
+    {
+        try
+        {
+            var response = await _applicationsTable.GetEntityIfExistsAsync<ApplicationEntity>(
+                partitionKey: "Application",
+                rowKey: applicationId);
+
+            return response.HasValue ? response.Value : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting application {ApplicationId}", applicationId);
+            throw;
+        }
+    }
+
+    public async Task<List<ApplicationEntity>> GetAllApplicationsAsync()
+    {
+        try
+        {
+            var applications = new List<ApplicationEntity>();
+            var query = _applicationsTable.QueryAsync<ApplicationEntity>(filter: $"PartitionKey eq 'Application'");
+
+            await foreach (var app in query)
+            {
+                applications.Add(app);
+            }
+
+            return applications;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting all applications");
+            throw;
+        }
+    }
+
+    public async Task UpsertApplicationAsync(ApplicationEntity application)
+    {
+        try
+        {
+            application.UpdatedAt = DateTime.UtcNow;
+            await _applicationsTable.UpsertEntityAsync(application, TableUpdateMode.Replace);
+            _logger.LogInformation("Upserted application {ApplicationId}", application.ApplicationId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error upserting application {ApplicationId}", application.ApplicationId);
+            throw;
+        }
+    }
+
+    // Customer-Application Relationship Methods
+    public async Task<CustomerApplicationEntity?> GetCustomerApplicationAsync(string customerId, string applicationId)
+    {
+        try
+        {
+            var response = await _customerApplicationsTable.GetEntityIfExistsAsync<CustomerApplicationEntity>(
+                partitionKey: customerId,
+                rowKey: applicationId);
+
+            return response.HasValue ? response.Value : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting customer application {CustomerId}/{ApplicationId}", customerId, applicationId);
+            throw;
+        }
+    }
+
+    public async Task<List<CustomerApplicationEntity>> GetCustomerApplicationsAsync(string customerId)
+    {
+        try
+        {
+            var customerApps = new List<CustomerApplicationEntity>();
+            var query = _customerApplicationsTable.QueryAsync<CustomerApplicationEntity>(
+                filter: $"PartitionKey eq '{customerId}'");
+
+            await foreach (var app in query)
+            {
+                customerApps.Add(app);
+            }
+
+            return customerApps;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting applications for customer {CustomerId}", customerId);
+            throw;
+        }
+    }
+
+    public async Task<List<CustomerApplicationEntity>> GetAllCustomerApplicationsAsync()
+    {
+        try
+        {
+            var customerApps = new List<CustomerApplicationEntity>();
+            var query = _customerApplicationsTable.QueryAsync<CustomerApplicationEntity>();
+
+            await foreach (var app in query)
+            {
+                customerApps.Add(app);
+            }
+
+            return customerApps;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting all customer applications");
+            throw;
+        }
+    }
+
+    public async Task UpsertCustomerApplicationAsync(CustomerApplicationEntity customerApp)
+    {
+        try
+        {
+            await _customerApplicationsTable.UpsertEntityAsync(customerApp, TableUpdateMode.Replace);
+            _logger.LogInformation("Upserted customer application {CustomerId}/{ApplicationId}", 
+                customerApp.CustomerId, customerApp.ApplicationId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error upserting customer application {CustomerId}/{ApplicationId}", 
+                customerApp.CustomerId, customerApp.ApplicationId);
             throw;
         }
     }

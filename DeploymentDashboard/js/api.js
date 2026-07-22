@@ -6,7 +6,10 @@ class DeploymentAPI {
     }
 
     async request(endpoint, options = {}) {
-        const url = `${this.baseUrl}${endpoint}`;
+        // Build the full URL and add function key if needed
+        const baseUrl = `${this.baseUrl}${endpoint}`;
+        const url = API_CONFIG.addKeyToUrl(baseUrl);
+
         const config = {
             headers: {
                 'Content-Type': 'application/json',
@@ -16,12 +19,17 @@ class DeploymentAPI {
         };
 
         try {
+            console.log(`🔄 API Request: ${endpoint}`);
             const response = await fetch(url, config);
-            
+
             if (!response.ok) {
+                if (response.status === 401) {
+                    console.error('❌ 401 Unauthorized - Function key missing or invalid!');
+                    console.error('   Add your Azure Function key to config.js');
+                }
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            
+
             return await response.json();
         } catch (error) {
             console.error('API request failed:', error);
@@ -64,6 +72,28 @@ class DeploymentAPI {
         return await this.request('/deployments', {
             method: 'POST',
             body: JSON.stringify(deployment)
+        });
+    }
+
+    // Workflow Run endpoints (DEPRECATED - use sync instead)
+    async getLatestUpdateCustomersStatus() {
+        return await this.request('/update-all-customers/latest');
+    }
+
+    async getWorkflowRunCustomerStatus(runId) {
+        return await this.request(`/workflow-runs/${runId}/customer-status`);
+    }
+
+    // Workflow Sync endpoints
+    async syncWorkflowData() {
+        return await this.request('/sync/workflow-data', {
+            method: 'POST'
+        });
+    }
+
+    async syncSpecificWorkflowRun(runId) {
+        return await this.request(`/sync/workflow-data/${runId}`, {
+            method: 'POST'
         });
     }
 }

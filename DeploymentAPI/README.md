@@ -1,6 +1,6 @@
 # Deployment Status API
 
-Azure Functions API for tracking Business Central deployments with CI/CD version management.
+Azure Functions API for tracking Business Central deployments with CI/CD version management and GitHub Actions integration.
 
 ## Features
 
@@ -11,8 +11,13 @@ Azure Functions API for tracking Business Central deployments with CI/CD version
 - Compare application versions with CI/CD version
 - Monitor current CI/CD version
 - Compare client versions with CI/CD and detect outdated deployments
+- **NEW: Integration with GitHub Actions from AdaptiveBS/CIApp repository**
+- **NEW: Fetch workflow runs and deployment actions from GitHub**
+- **NEW: Combine local deployment data with GitHub Actions status**
 
 ## API Endpoints
+
+### Deployment Management
 
 ### 1. Register Deployment
 
@@ -177,6 +182,117 @@ Returns the current CI/CD version.
 }
 ```
 
+### GitHub Actions Integration
+
+### 7. Get GitHub Workflow Runs
+
+**GET** `/api/github/actions`
+**GET** `/api/github/actions?client={clientName}`
+
+Fetches workflow runs from the AdaptiveBS/CIApp repository. Optionally filter by client name.
+
+**Response:**
+```json
+[
+  {
+    "id": 123456789,
+    "name": "Deploy to Client ABC",
+    "status": "completed",
+    "conclusion": "success",
+    "headBranch": "main",
+    "createdAt": "2026-01-27T10:30:00Z",
+    "updatedAt": "2026-01-27T10:35:00Z",
+    "htmlUrl": "https://github.com/AdaptiveBS/CIApp/actions/runs/123456789",
+    "actor": {
+      "login": "username",
+      "avatarUrl": "https://avatars.githubusercontent.com/u/123456"
+    }
+  }
+]
+```
+
+### 8. Get GitHub Workflows
+
+**GET** `/api/github/workflows`
+
+Fetches all configured workflows in the repository.
+
+**Response:**
+```json
+[
+  {
+    "id": 12345,
+    "name": "Deploy to Production",
+    "path": ".github/workflows/deploy-prod.yml",
+    "state": "active",
+    "createdAt": "2026-01-01T00:00:00Z",
+    "badgeUrl": "https://github.com/AdaptiveBS/CIApp/workflows/Deploy%20to%20Production/badge.svg"
+  }
+]
+```
+
+### 9. Get GitHub Repository Info
+
+**GET** `/api/github/repository`
+
+Fetches repository metadata.
+
+**Response:**
+```json
+{
+  "id": 123456,
+  "name": "CIApp",
+  "fullName": "AdaptiveBS/CIApp",
+  "private": true,
+  "defaultBranch": "main",
+  "createdAt": "2023-01-01T00:00:00Z"
+}
+```
+
+### 10. Get Client Status with GitHub Data
+
+**GET** `/api/clients/{clientId}/status-with-github`
+
+Returns client deployment status enriched with GitHub Actions workflow runs.
+
+**Response:**
+```json
+{
+  "client": {
+    "clientId": "client-001",
+    "clientName": "Company ABC",
+    "applications": [...]
+  },
+  "gitHubWorkflows": [
+    {
+      "id": 123456789,
+      "name": "Deploy to Client ABC",
+      "status": "completed",
+      "conclusion": "success",
+      "createdAt": "2026-01-27T10:30:00Z"
+    }
+  ]
+}
+```
+
+## GitHub Integration Setup
+
+To use GitHub Actions integration, you need to configure a Personal Access Token:
+
+1. Create a GitHub PAT with `repo` scope (see `GITHUB-SETUP-GUIDE.md`)
+2. Add to your `local.settings.json`:
+   ```json
+   {
+     "Values": {
+       "GitHub:Token": "ghp_your_token_here",
+       "GitHub:Owner": "AdaptiveBS",
+       "GitHub:Repository": "CIApp"
+     }
+   }
+   ```
+
+For detailed setup instructions, see **GITHUB-SETUP-GUIDE.md** in the root directory.
+
 ## Storage Architecture
 
 ### Two-Table Design
@@ -304,4 +420,18 @@ See root folder for additional documentation:
 - **QUICK-START.md** - Quick reference guide
 - **ARCHITECTURE-STORAGE.md** - Detailed storage architecture
 - **STORAGE-SETUP.md** - Azure Storage setup guide
+- **GITHUB-SETUP-GUIDE.md** - GitHub integration setup instructions
+- **GITHUB-INTEGRATION.md** - Detailed GitHub API documentation
+
+## Testing
+
+### Test Deployment API
+```powershell
+./test-api.ps1
+```
+
+### Test GitHub Integration
+```powershell
+./test-github-integration.ps1
+```
 

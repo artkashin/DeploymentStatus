@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workflow Status Test</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f3f2f1;
+        }
+        h1 {
+            color: #0078d4;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        button {
+            background: #0078d4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        button:hover {
+            background: #106ebe;
+        }
+        pre {
+            background: #f8f8f8;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            max-height: 400px;
+        }
+        .success {
+            color: #107c10;
+            font-weight: bold;
+        }
+        .error {
+            color: #d13438;
+            font-weight: bold;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .status.success {
+            background: #f3faf3;
+            border: 1px solid #107c10;
+        }
+        .status.error {
+            background: #fdf3f3;
+            border: 1px solid #d13438;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Workflow Status API Test</h1>
+
+    <div class="test-section">
+        <h2>API Configuration</h2>
+        <p><strong>Base URL:</strong> <span id="apiUrl"></span></p>
+        <p><strong>Endpoint:</strong> /api/update-all-customers/latest</p>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 1: Get Latest Workflow Run Status</h2>
+        <button onclick="testLatestWorkflowRun()">Run Test</button>
+        <div id="test1Result" style="margin-top: 15px;"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: Get Specific Workflow Run Status</h2>
+        <input type="number" id="runIdInput" placeholder="Enter Run ID (e.g., 29418806053)" style="padding: 8px; width: 300px;">
+        <button onclick="testSpecificWorkflowRun()">Run Test</button>
+        <div id="test2Result" style="margin-top: 15px;"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Sample Dashboard Preview</h2>
+        <div id="dashboardPreview"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:7071/api';
+        document.getElementById('apiUrl').textContent = API_BASE_URL;
+
+        async function testLatestWorkflowRun() {
+            const resultDiv = document.getElementById('test1Result');
+            resultDiv.innerHTML = '<p>🔄 Loading...</p>';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/update-all-customers/latest`);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                resultDiv.innerHTML = `
+                    <div class="status success">
+                        <p class="success">✓ Success!</p>
+                        <p><strong>Run #${data.runNumber}</strong> (ID: ${data.runId})</p>
+                        <p>Workflow: ${data.workflowName}</p>
+                        <p>Total Customers: ${data.totalCustomers}</p>
+                        <p>✓ Successful: ${data.successfulInstallations}</p>
+                        <p>✗ Failed: ${data.failedInstallations}</p>
+                        <p>Success Rate: ${Math.round((data.successfulInstallations / data.totalCustomers) * 100)}%</p>
+                    </div>
+                    <h4>Full Response:</h4>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+
+                // Update preview
+                createDashboardPreview(data);
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="status error">
+                        <p class="error">✗ Error!</p>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function testSpecificWorkflowRun() {
+            const runId = document.getElementById('runIdInput').value;
+            const resultDiv = document.getElementById('test2Result');
+
+            if (!runId) {
+                resultDiv.innerHTML = '<div class="status error"><p class="error">Please enter a Run ID</p></div>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<p>🔄 Loading...</p>';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/workflow-runs/${runId}/customer-status`);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                resultDiv.innerHTML = `
+                    <div class="status success">
+                        <p class="success">✓ Success!</p>
+                        <p><strong>Run #${data.runNumber}</strong> (ID: ${data.runId})</p>
+                        <p>Total Customers: ${data.totalCustomers}</p>
+                        <p>✓ Successful: ${data.successfulInstallations}</p>
+                        <p>✗ Failed: ${data.failedInstallations}</p>
+                    </div>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="status error">
+                        <p class="error">✗ Error!</p>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function createDashboardPreview(data) {
+            const previewDiv = document.getElementById('dashboardPreview');
+
+            const successCustomers = data.customers.filter(c => c.installed);
+            const failedCustomers = data.customers.filter(c => !c.installed);
+
+            previewDiv.innerHTML = `
+                <h3>Customer Status Summary</h3>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin: 20px 0;">
+                    <div style="background: #f3f2f1; padding: 15px; border-radius: 6px; text-align: center;">
+                        <div style="font-size: 28px; font-weight: bold;">${data.totalCustomers}</div>
+                        <div style="font-size: 12px; color: #605e5c;">TOTAL</div>
+                    </div>
+                    <div style="background: #f3faf3; padding: 15px; border-radius: 6px; text-align: center; border: 2px solid #107c10;">
+                        <div style="font-size: 28px; font-weight: bold; color: #107c10;">${data.successfulInstallations}</div>
+                        <div style="font-size: 12px; color: #605e5c;">✓ INSTALLED</div>
+                    </div>
+                    <div style="background: #fdf3f3; padding: 15px; border-radius: 6px; text-align: center; border: 2px solid #d13438;">
+                        <div style="font-size: 28px; font-weight: bold; color: #d13438;">${data.failedInstallations}</div>
+                        <div style="font-size: 12px; color: #605e5c;">✗ FAILED</div>
+                    </div>
+                    <div style="background: #fff9f0; padding: 15px; border-radius: 6px; text-align: center; border: 2px solid #ff8c00;">
+                        <div style="font-size: 28px; font-weight: bold; color: #ff8c00;">${Math.round((data.successfulInstallations / data.totalCustomers) * 100)}%</div>
+                        <div style="font-size: 12px; color: #605e5c;">SUCCESS RATE</div>
+                    </div>
+                </div>
+
+                <h4 style="color: #107c10;">✓ Successfully Installed (${successCustomers.length})</h4>
+                <ul>
+                    ${successCustomers.map(c => `<li><strong>${c.name}</strong> - ${c.durationSeconds}s on ${c.runner}</li>`).join('')}
+                </ul>
+
+                ${failedCustomers.length > 0 ? `
+                    <h4 style="color: #d13438;">✗ Failed Installations (${failedCustomers.length})</h4>
+                    <ul>
+                        ${failedCustomers.map(c => `<li><strong>${c.name}</strong> - ${c.status} (${c.durationSeconds}s on ${c.runner})</li>`).join('')}
+                    </ul>
+                ` : ''}
+            `;
+        }
+
+        // Auto-run test on load
+        window.addEventListener('load', () => {
+            // Optionally auto-run the test
+            // testLatestWorkflowRun();
+        });
+    </script>
+</body>
+</html>

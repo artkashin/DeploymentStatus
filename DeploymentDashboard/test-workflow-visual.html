@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workflow Status - Minimal Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; }
+        .info { padding: 10px; background: #e3f2fd; border-left: 4px solid #2196F3; margin: 10px 0; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        button { 
+            padding: 10px 20px; 
+            background: #2196F3; 
+            color: white; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover { background: #1976D2; }
+        #output { margin-top: 20px; }
+        .workflow-summary-grid {
+            display: grid;
+            gap: 20px;
+            margin: 20px 0;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .workflow-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+        .workflow-stat {
+            text-align: center;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #333;
+        }
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .stat-success .stat-value { color: #4caf50; }
+        .stat-danger .stat-value { color: #f44336; }
+        .workflow-customers-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .workflow-customer-card {
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px solid;
+            background: white;
+        }
+        .workflow-customer-card.success {
+            border-color: #4caf50;
+            background: #f1f8f4;
+        }
+        .workflow-customer-card.failed {
+            border-color: #f44336;
+            background: #fef1f1;
+        }
+        .customer-name {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .customer-name.success { color: #4caf50; }
+        .customer-name.failed { color: #f44336; }
+        .customer-details {
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Workflow Status Test</h1>
+
+        <div class="info">
+            <strong>Testing:</strong> /api/update-all-customers/latest endpoint
+        </div>
+
+        <button onclick="loadWorkflowData()">Load Workflow Data</button>
+        <button onclick="window.location.href='index.html'" style="background: #666;">Open Full Dashboard</button>
+
+        <div id="output">
+            <p style="color: #999;">Click "Load Workflow Data" to test the API...</p>
+        </div>
+    </div>
+
+    <script>
+        // Auto-detect API URL based on environment
+        const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:7071/api'
+            : 'https://func-deployment-status-api-g0egd2dbc9d9c2d9.eastus2-01.azurewebsites.net/api';
+
+        async function loadWorkflowData() {
+            const output = document.getElementById('output');
+            output.innerHTML = `<p>⏳ Loading from ${API_URL}...</p>`;
+
+            try {
+                console.log(`Fetching: ${API_URL}/update-all-customers/latest`);
+                const response = await fetch(`${API_URL}/update-all-customers/latest`);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                console.log('Data received:', data);
+
+                // Display the workflow data exactly like the dashboard should
+                const html = `
+                    <h2 class="success">✓ Data Loaded Successfully!</h2>
+
+                    <div class="workflow-summary-grid">
+                        <div class="workflow-info">
+                            <h3>${data.workflowName}</h3>
+                            <p>Run #${data.runNumber} - ${data.status}</p>
+                        </div>
+                        <div class="workflow-stats-grid">
+                            <div class="workflow-stat">
+                                <div class="stat-value">${data.totalCustomers}</div>
+                                <div class="stat-label">Total Customers</div>
+                            </div>
+                            <div class="workflow-stat stat-success">
+                                <div class="stat-value">${data.successfulInstallations}</div>
+                                <div class="stat-label">✓ Installed</div>
+                            </div>
+                            <div class="workflow-stat stat-danger">
+                                <div class="stat-value">${data.failedInstallations}</div>
+                                <div class="stat-label">✗ Failed</div>
+                            </div>
+                            <div class="workflow-stat">
+                                <div class="stat-value">${Math.round((data.successfulInstallations / data.totalCustomers) * 100)}%</div>
+                                <div class="stat-label">Success Rate</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h3>Customer Status:</h3>
+                    <div class="workflow-customers-list">
+                        ${data.customers.map(c => `
+                            <div class="workflow-customer-card ${c.installed ? 'success' : 'failed'}">
+                                <div class="customer-name ${c.installed ? 'success' : 'failed'}">
+                                    ${c.installed ? '✓' : '✗'} ${c.name}
+                                </div>
+                                <div class="customer-details">
+                                    <div>Status: ${c.status}</div>
+                                    <div>Duration: ${c.durationSeconds}s</div>
+                                    <div>Runner: ${c.runner}</div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <div class="info" style="margin-top: 20px;">
+                        <strong>✓ This is exactly what should appear in the main dashboard!</strong><br>
+                        If the main dashboard still shows "Failed to load workflow status", check the browser console (F12) for errors.
+                    </div>
+                `;
+
+                output.innerHTML = html;
+
+            } catch (error) {
+                console.error('Error:', error);
+                output.innerHTML = `
+                    <h2 class="error">✗ Error Loading Data</h2>
+                    <div class="info" style="border-color: #f44336; background: #ffebee;">
+                        <strong>Error:</strong> ${error.message}
+                        <br><br>
+                        <strong>Possible causes:</strong>
+                        <ul>
+                            <li>API is not running (run: <code>cd DeploymentAPI; func start</code>)</li>
+                            <li>API is running on a different port</li>
+                            <li>CORS issue (check browser console)</li>
+                        </ul>
+                    </div>
+                `;
+            }
+        }
+
+        // Auto-load on page load
+        window.addEventListener('load', () => {
+            setTimeout(loadWorkflowData, 500);
+        });
+    </script>
+</body>
+</html>

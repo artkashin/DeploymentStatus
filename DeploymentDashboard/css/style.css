@@ -520,6 +520,430 @@ body {
     color: var(--text-secondary);
 }
 
+/* Workflow Run Status Section */
+.workflow-section {
+    background: var(--card-bg);
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    margin-bottom: 20px;
+}
+
+.workflow-summary {
+    margin-bottom: 20px;
+}
+
+.workflow-summary-grid {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 20px;
+    align-items: start;
+}
+
+.workflow-info {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.workflow-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.workflow-title h3 {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.run-badge {
+    background: var(--primary-color);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.workflow-meta {
+    display: flex;
+    gap: 20px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    flex-wrap: wrap;
+}
+
+.workflow-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px;
+    min-width: 400px;
+}
+
+.workflow-stat {
+    background: var(--bg-color);
+    padding: 15px;
+    border-radius: 6px;
+    text-align: center;
+    border: 2px solid transparent;
+}
+
+.workflow-stat.stat-success {
+    background: #f3faf3;
+    border-color: var(--success-color);
+}
+
+.workflow-stat.stat-danger {
+    background: #fdf3f3;
+    border-color: var(--danger-color);
+}
+
+.workflow-stat.stat-warning {
+    background: #fff9f0;
+    border-color: var(--warning-color);
+}
+
+.workflow-stat .stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1;
+    margin-bottom: 5px;
+}
+
+.workflow-stat .stat-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.workflow-stat.stat-success .stat-value {
+    color: var(--success-color);
+}
+
+.workflow-stat.stat-danger .stat-value {
+    color: var(--danger-color);
+}
+
+.workflow-stat.stat-warning .stat-value {
+    color: var(--warning-color);
+}
+
+.workflow-customers-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 15px;
+}
+
+.workflow-customer-card {
+    background: var(--bg-color);
+    border: 2px solid var(--border-color);
+    border-radius: 6px;
+    padding: 15px;
+    transition: all 0.3s;
+}
+
+.workflow-customer-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+}
+
+.workflow-customer-card.success {
+    border-left: 4px solid var(--success-color);
+    background: #f8fff8;
+}
+
+.workflow-customer-card.failed {
+    border-left: 4px solid var(--danger-color);
+    background: #fff8f8;
+}
+
+.customer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.customer-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+}
+
+.status-icon {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.workflow-customer-card.success .status-icon {
+    color: var(--success-color);
+}
+
+.workflow-customer-card.failed .status-icon {
+    color: var(--danger-color);
+}
+
+.status-badge {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.status-badge.status-success {
+    background: var(--success-color);
+    color: white;
+}
+
+.status-badge.status-failure {
+    background: var(--danger-color);
+    color: white;
+}
+
+.status-badge.status-completed {
+    background: var(--primary-color);
+    color: white;
+}
+
+.customer-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.detail-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+}
+
+.detail-value {
+    font-size: 13px;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.customer-actions {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+}
+
+.btn-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--primary-color);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    transition: color 0.3s;
+}
+
+.btn-link:hover {
+    color: var(--secondary-color);
+    text-decoration: underline;
+}
+
+/* Enhanced Client Cards - Multi-App Display */
+.client-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.app-count {
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+.inactive-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    background: var(--text-secondary);
+    color: white;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 8px;
+}
+
+/* Applications List */
+.apps-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.app-item {
+    background: #fafafa;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 12px;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.app-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.app-success {
+    border-left: 4px solid var(--success-color);
+}
+
+.app-failed {
+    border-left: 4px solid var(--danger-color);
+}
+
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.app-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
+.app-status {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 12px;
+    text-transform: uppercase;
+}
+
+.app-status.success {
+    background: #e6f7e6;
+    color: var(--success-color);
+}
+
+.app-status.failed {
+    background: #fde7e9;
+    color: var(--danger-color);
+}
+
+.app-status.inprogress {
+    background: #fff4ce;
+    color: var(--warning-color);
+}
+
+.app-status.unknown {
+    background: #f3f2f1;
+    color: var(--text-secondary);
+}
+
+/* Version Information */
+.version-info {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.version-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+}
+
+.version-label {
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.version-value {
+    color: var(--text-primary);
+    font-weight: 600;
+    font-family: 'Courier New', monospace;
+}
+
+.version-date {
+    color: var(--text-secondary);
+    font-size: 11px;
+    margin-left: 8px;
+}
+
+/* Status Badges */
+.status-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.badge-success {
+    background: #e6f7e6;
+    color: var(--success-color);
+}
+
+.badge-warning {
+    background: #fff4ce;
+    color: var(--warning-color);
+}
+
+.badge-error {
+    background: #fde7e9;
+    color: var(--danger-color);
+}
+
+/* Client Summary */
+.client-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color);
+}
+
+/* Status Classes for Client Cards */
+.status-active {
+    border-left: 4px solid var(--primary-color);
+}
+
+.status-inactive {
+    border-left: 4px solid var(--text-secondary);
+    opacity: 0.7;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .header {
@@ -541,6 +965,10 @@ body {
         grid-template-columns: 1fr;
     }
 
+    .apps-list {
+        grid-template-columns: 1fr;
+    }
+
     .history-info {
         grid-template-columns: 1fr;
         gap: 8px;
@@ -550,5 +978,18 @@ body {
         flex-direction: column;
         align-items: flex-start;
         gap: 15px;
+    }
+
+    .workflow-summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .workflow-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        min-width: auto;
+    }
+
+    .workflow-customers-list {
+        grid-template-columns: 1fr;
     }
 }
