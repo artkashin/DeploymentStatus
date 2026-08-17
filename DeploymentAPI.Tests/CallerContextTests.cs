@@ -36,4 +36,19 @@ public sealed class CallerContextTests
         Assert.True(caller.IsAdaptive);
         Assert.Contains("tappers", caller.CustomerIds);
     }
+
+    [Fact]
+    public void Validated_bearer_claims_are_used_when_flex_does_not_inject_a_principal_header()
+    {
+        var request = new DefaultHttpContext().Request;
+        var payload = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("""{"preferred_username":"akashin@adaptivenav.com","roles":["DeploymentStatus.Adaptive.All"]}"""))
+            .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        request.Headers.Authorization = $"Bearer eyJhbGciOiJub25lIn0.{payload}.signature";
+
+        var caller = new CallerContextFactory(new ConfigurationBuilder().Build()).Create(request);
+
+        Assert.True(caller.IsAuthenticated);
+        Assert.Equal("akashin@adaptivenav.com", caller.Name);
+        Assert.True(caller.IsAdaptive);
+    }
 }
