@@ -86,8 +86,8 @@ public sealed class DeploymentFunctions(IDeploymentStore store, CallerContextFac
         if (!caller.CanAccess(customerId)) return new ObjectResult(new { error = "Customer access is not allowed." }) { StatusCode = 403 };
         var latest = (await store.GetCustomersAsync(new HashSet<string>([customerId], StringComparer.OrdinalIgnoreCase), cancellationToken)).SingleOrDefault();
         if (latest is null) return new NotFoundObjectResult(new { error = "Customer was not found." });
-        var currentState = await store.GetCurrentStateAsync(customerId, cancellationToken);
-        return new OkObjectResult(new { customer = latest, currentState });
+        var desiredAppState = await store.GetDesiredAppStateAsync(customerId, cancellationToken);
+        return new OkObjectResult(new { customer = latest, desiredAppState });
     }
 
     [Function("GetDeploymentsV1")]

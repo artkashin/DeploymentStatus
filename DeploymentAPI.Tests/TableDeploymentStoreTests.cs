@@ -9,7 +9,7 @@ public sealed class TableDeploymentStoreTests
     private static readonly string[] TableNames =
     [
         "DeploymentRuns", "DeploymentOperations", "DeploymentFeed",
-        "CustomerCurrentState", "CustomerLatest", "DeploymentEventIndex"
+        "CustomerDesiredState", "CustomerLatest", "DeploymentEventIndex"
     ];
 
     [Fact]
@@ -43,14 +43,15 @@ public sealed class TableDeploymentStoreTests
                         ApplicationId = "retail", ApplicationName = "Retail", Action = "verify",
                         Outcome = DeploymentOutcome.Success, TargetVersion = "3.0.0.0", ObservedVersion = "3.0.0.0"
                     }
-                ]
+                ],
+                TenantAppStates = [new TenantAppState { TenantId = "default", TenantLabel = "Default", ApplicationId = "retail", ApplicationName = "Retail", DesiredVersion = "3.0.0.0", InstalledVersion = "3.0.0.0", ObservedAt = started.AddMinutes(3), State = "current", LastOutcome = DeploymentOutcome.Success }]
             };
 
             Assert.True(await store.RegisterAsync(deployment));
             Assert.False(await store.RegisterAsync(deployment));
             Assert.Equal(deployment.EventId, (await store.GetAsync(deployment.EventId))?.EventId);
             Assert.Single((await store.QueryAsync(new DeploymentQuery(null, null, null, null, null, null, null, 0, 25))).Items);
-            Assert.Equal("3.0.0.0", Assert.Single(await store.GetCurrentStateAsync("retaildemo")).Version);
+            Assert.Equal("3.0.0.0", Assert.Single(await store.GetDesiredAppStateAsync("retaildemo")).InstalledVersion);
             Assert.Equal("retaildemo", Assert.Single(await store.GetCustomersAsync(null)).CustomerId);
 
             var createdTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

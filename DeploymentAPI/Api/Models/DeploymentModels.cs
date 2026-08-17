@@ -46,7 +46,26 @@ public sealed class DeploymentEvent
     public string DetailCompleteness { get; set; } = "full";
     public DeploymentSummary Summary { get; set; } = new();
     public ArtifactSourceReference? ArtifactSource { get; set; }
+    public List<TenantAppState> TenantAppStates { get; set; } = [];
     public List<DeploymentOperation> Operations { get; set; } = [];
+}
+
+// A complete, customer-safe inventory of the applications CIApp expects for a selected tenant.
+// This is deliberately separate from operations: an app can be desired even when no command ran.
+public sealed class TenantAppState
+{
+    public required string TenantId { get; set; }
+    public string? TenantLabel { get; set; }
+    public string? ApplicationId { get; set; }
+    public required string ApplicationName { get; set; }
+    public string? Publisher { get; set; }
+    public string? DesiredVersion { get; set; }
+    public string? InstalledVersion { get; set; }
+    public DateTimeOffset? ObservedAt { get; set; }
+    // current, outdated, failed, unavailable, or planned
+    public required string State { get; set; }
+    public DeploymentOutcome? LastOutcome { get; set; }
+    public string? SafeMessage { get; set; }
 }
 
 public sealed class ArtifactSourceReference
@@ -147,6 +166,11 @@ public sealed class CustomerLatestStatus
     public DeploymentSummary Summary { get; init; } = new();
     public string? BcVersion { get; init; }
     public string? PackageVersion { get; init; }
+    public int DesiredAppCount { get; init; }
+    public int CurrentAppCount { get; init; }
+    public int AttentionAppCount { get; init; }
+    public int FailedAppCount { get; init; }
+    public string Health { get; init; } = "unknown";
 }
 
 public sealed class CurrentDeploymentState
@@ -159,5 +183,23 @@ public sealed class CurrentDeploymentState
     public string? Version { get; init; }
     public DeploymentOutcome LastOutcome { get; init; }
     public DateTimeOffset VerifiedAt { get; init; }
+    public required string EventId { get; init; }
+}
+
+public sealed class CustomerDesiredAppState
+{
+    public required string CustomerId { get; init; }
+    public required string TenantId { get; init; }
+    public string? TenantLabel { get; init; }
+    public required string ApplicationId { get; init; }
+    public required string ApplicationName { get; init; }
+    public string? Publisher { get; init; }
+    public string? DesiredVersion { get; init; }
+    public string? InstalledVersion { get; init; }
+    public DateTimeOffset? ObservedAt { get; init; }
+    public required string State { get; init; }
+    public DeploymentOutcome? LastOutcome { get; init; }
+    public string? SafeMessage { get; init; }
+    public DateTimeOffset UpdatedAt { get; init; }
     public required string EventId { get; init; }
 }

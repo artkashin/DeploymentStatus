@@ -63,6 +63,26 @@ public sealed class DeploymentFunctionsTests
         Assert.Equal("1.0.1205.0", (await store.GetArtifactSourcesAsync()).Single().PackageVersion);
     }
 
+    [Fact]
+    public async Task Failed_attempt_keeps_the_observed_installed_version_and_rolls_up_failed()
+    {
+        var store = new InMemoryDeploymentStore();
+        var item = Event("retaildemo", 501);
+        item.Status = DeploymentRunStatus.Failed;
+        item.TenantAppStates.Add(new TenantAppState
+        {
+            TenantId = "default", ApplicationId = "retail-pos-jewelry", ApplicationName = "Retail POS Jewelry",
+            DesiredVersion = "1.0.1206.0", InstalledVersion = "1.0.1205.0", ObservedAt = item.CompletedAt,
+            State = "failed", LastOutcome = DeploymentOutcome.Failed, SafeMessage = "Application upgrade failed."
+        });
+        await store.RegisterAsync(item);
+        var state = (await store.GetDesiredAppStateAsync("retaildemo")).Single();
+        var customer = (await store.GetCustomersAsync(null)).Single();
+        Assert.Equal("1.0.1205.0", state.InstalledVersion);
+        Assert.Equal("failed", state.State);
+        Assert.Equal("failed", customer.Health);
+    }
+
     private static DeploymentFunctions Functions(IDeploymentStore store)
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>

@@ -6,30 +6,14 @@ namespace DeploymentStatus.Api.Storage;
 public sealed class InMemoryDeploymentStore : IDeploymentStore
 {
     private readonly ConcurrentDictionary<string, DeploymentEvent> _events = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ConcurrentDictionary<string, CurrentDeploymentState> _state = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, CustomerDesiredAppState> _desiredState = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, ArtifactSource> _artifactSources = new(StringComparer.OrdinalIgnoreCase);
 
     public Task<bool> RegisterAsync(DeploymentEvent item, CancellationToken cancellationToken = default)
     {
         item.Customer.Id = item.Customer.Id.ToLowerInvariant();
         var added = _events.TryAdd(item.EventId, item);
-        if (added && item.Mode == DeploymentMode.Execute)
-        {
-            foreach (var operation in item.Operations.Where(operation => operation.Scope.Equals("tenant", StringComparison.OrdinalIgnoreCase) && IsVerified(operation)))
-            {
-                var tenantId = operation.TenantId ?? "service";
-                var appId = operation.ApplicationId ?? operation.ApplicationName.ToLowerInvariant().Replace(' ', '-');
-                var key = $"{item.Customer.Id}|{tenantId}|{appId}";
-                var state = new CurrentDeploymentState
-                {
-                    CustomerId = item.Customer.Id, TenantId = tenantId, TenantLabel = operation.TenantLabel,
-                    ApplicationId = appId, ApplicationName = operation.ApplicationName,
-                    Version = operation.ObservedVersion ?? operation.TargetVersion, LastOutcome = operation.Outcome,
-                    VerifiedAt = item.CompletedAt, EventId = item.EventId
-                };
-                _state.AddOrUpdate(key, state, (_, existing) => existing.VerifiedAt > state.VerifiedAt ? existing : state);
-            }
-        }
+        if (added && item.Mode == DeploymentMode.Execute) UpdateDesiredState(item);
         return Task.FromResult(added);
     }
 
@@ -49,15 +33,15 @@ public sealed class InMemoryDeploymentStore : IDeploymentStore
         var result = _events.Values.Where(item => customerIds is null || customerIds.Contains(item.Customer.Id))
             .GroupBy(item => item.Customer.Id, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.OrderByDescending(item => item.CompletedAt).First())
-            .Select(item => new CustomerLatestStatus { CustomerId = item.Customer.Id, CustomerName = item.Customer.Name,
+            .Select(item => WithHealth(new CustomerLatestStatus { CustomerId = item.Customer.Id, CustomerName = item.Customer.Name,
                 EventId = item.EventId, Status = item.Status, Mode = item.Mode, CompletedAt = item.CompletedAt, Summary = item.Summary,
-                BcVersion = item.ArtifactSource?.BcVersion, PackageVersion = item.ArtifactSource?.PackageVersion })
+                BcVersion = item.ArtifactSource?.BcVersion, PackageVersion = item.ArtifactSource?.PackageVersion }, item.Customer.Id))
             .OrderBy(item => item.CustomerName).Cast<CustomerLatestStatus>().ToList();
         return Task.FromResult<IReadOnlyList<CustomerLatestStatus>>(result);
     }
 
-    public Task<IReadOnlyList<CurrentDeploymentState>> GetCurrentStateAsync(string customerId, CancellationToken cancellationToken = default)
-        => Task.FromResult<IReadOnlyList<CurrentDeploymentState>>(_state.Values.Where(item => item.CustomerId.Equals(customerId, StringComparison.OrdinalIgnoreCase))
+    public Task<IReadOnlyList<CustomerDesiredAppState>> GetDesiredAppStateAsync(string customerId, CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<CustomerDesiredAppState>>(_desiredState.Values.Where(item => item.CustomerId.Equals(customerId, StringComparison.OrdinalIgnoreCase))
             .OrderBy(item => item.TenantId).ThenBy(item => item.ApplicationName).ToList());
 
     public Task<bool> RegisterArtifactSourceAsync(ArtifactSource item, CancellationToken cancellationToken = default)
@@ -79,6 +63,47 @@ public sealed class InMemoryDeploymentStore : IDeploymentStore
 
     internal static bool IsVerified(DeploymentOperation operation) => operation.Outcome is DeploymentOutcome.Success
         or DeploymentOutcome.AlreadyCurrent or DeploymentOutcome.NewerPresent;
+
+    private void UpdateDesiredState(DeploymentEvent item)
+    {
+        foreach (var tenant in item.TenantAppStates.GroupBy(state => state.TenantId, StringComparer.OrdinalIgnoreCase))
+        {
+            var expectedIds = tenant.Select(state => state.ApplicationId ?? state.ApplicationName.ToLowerInvariant().Replace(' ', '-')).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var existing in _desiredState.Where(pair => pair.Value.CustomerId.Equals(item.Customer.Id, StringComparison.OrdinalIgnoreCase) && pair.Value.TenantId.Equals(tenant.Key, StringComparison.OrdinalIgnoreCase) && !expectedIds.Contains(pair.Value.ApplicationId)).ToList())
+                _desiredState.TryRemove(existing.Key, out _);
+        }
+        foreach (var snapshot in item.TenantAppStates)
+        {
+            var appId = snapshot.ApplicationId ?? snapshot.ApplicationName.ToLowerInvariant().Replace(' ', '-');
+            var key = $"{item.Customer.Id}|{snapshot.TenantId}|{appId}";
+            _desiredState.AddOrUpdate(key,
+                _ => ToDesiredState(item, snapshot, null),
+                (_, existing) => existing.UpdatedAt > item.CompletedAt ? existing : ToDesiredState(item, snapshot, existing));
+        }
+    }
+
+    private static CustomerDesiredAppState ToDesiredState(DeploymentEvent item, TenantAppState snapshot, CustomerDesiredAppState? existing)
+    {
+        var installed = snapshot.InstalledVersion ?? existing?.InstalledVersion;
+        var observedAt = snapshot.InstalledVersion is null ? existing?.ObservedAt : snapshot.ObservedAt ?? item.CompletedAt;
+        return new CustomerDesiredAppState
+        {
+            CustomerId = item.Customer.Id, TenantId = snapshot.TenantId, TenantLabel = snapshot.TenantLabel,
+            ApplicationId = snapshot.ApplicationId ?? snapshot.ApplicationName.ToLowerInvariant().Replace(' ', '-'),
+            ApplicationName = snapshot.ApplicationName, Publisher = snapshot.Publisher, DesiredVersion = snapshot.DesiredVersion,
+            InstalledVersion = installed, ObservedAt = observedAt, State = snapshot.State,
+            LastOutcome = snapshot.LastOutcome, SafeMessage = snapshot.SafeMessage, UpdatedAt = item.CompletedAt, EventId = item.EventId
+        };
+    }
+
+    private CustomerLatestStatus WithHealth(CustomerLatestStatus item, string customerId)
+    {
+        var states = _desiredState.Values.Where(state => state.CustomerId.Equals(customerId, StringComparison.OrdinalIgnoreCase)).ToList();
+        var failed = states.Count(state => state.State == "failed");
+        var current = states.Count(state => state.State == "current");
+        var attention = states.Count - current - failed;
+        return new CustomerLatestStatus { CustomerId = item.CustomerId, CustomerName = item.CustomerName, EventId = item.EventId, Status = item.Status, Mode = item.Mode, CompletedAt = item.CompletedAt, Summary = item.Summary, BcVersion = item.BcVersion, PackageVersion = item.PackageVersion, DesiredAppCount = states.Count, CurrentAppCount = current, AttentionAppCount = attention, FailedAppCount = failed, Health = failed > 0 ? "failed" : attention > 0 ? "attention" : states.Count > 0 ? "current" : "unknown" };
+    }
 }
 
 public static class Cursor

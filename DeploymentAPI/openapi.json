@@ -248,9 +248,22 @@
           }
         ]
       },
+      "TenantAppState": {
+        "type": "object",
+        "required": ["tenantId", "applicationName", "state"],
+        "properties": {
+          "tenantId": { "type": "string" }, "tenantLabel": { "type": ["string", "null"] },
+          "applicationId": { "type": ["string", "null"] }, "applicationName": { "type": "string" },
+          "publisher": { "type": ["string", "null"] }, "desiredVersion": { "type": ["string", "null"] },
+          "installedVersion": { "type": ["string", "null"] }, "observedAt": { "type": ["string", "null"], "format": "date-time" },
+          "state": { "enum": ["current", "outdated", "failed", "unavailable", "planned"] },
+          "lastOutcome": { "oneOf": [{ "$ref": "#/components/schemas/Outcome" }, { "type": "null" }] },
+          "safeMessage": { "type": ["string", "null"] }
+        }
+      },
       "DeploymentEventInput": {
         "type": "object",
-        "required": ["schemaVersion", "eventId", "source", "customer", "mode", "status", "startedAt", "completedAt", "detailCompleteness", "summary", "operations"],
+        "required": ["schemaVersion", "eventId", "source", "customer", "mode", "status", "startedAt", "completedAt", "detailCompleteness", "summary", "tenantAppStates", "operations"],
         "properties": {
           "schemaVersion": { "const": "1.0" },
           "eventId": { "type": "string", "maxLength": 256, "description": "repositoryKey:runId:runAttempt:customerId:mode; non-URL-safe repository separators are replaced by ~" },
@@ -263,6 +276,7 @@
           "detailCompleteness": { "type": "string", "enum": ["full", "summary"] },
           "summary": { "$ref": "#/components/schemas/Summary" },
           "artifactSource": { "$ref": "#/components/schemas/ArtifactSourceReference" },
+          "tenantAppStates": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/components/schemas/TenantAppState" } },
           "operations": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/components/schemas/OperationInput" } }
         }
       },
@@ -280,6 +294,7 @@
           "detailCompleteness": { "type": "string", "enum": ["full", "summary"] },
           "summary": { "$ref": "#/components/schemas/Summary" },
           "artifactSource": { "oneOf": [{ "$ref": "#/components/schemas/ArtifactSourceReference" }, { "type": "null" }] },
+          "tenantAppStates": { "type": ["array", "null"], "items": { "$ref": "#/components/schemas/TenantAppState" } },
           "operations": { "type": ["array", "null"], "items": { "$ref": "#/components/schemas/OperationDto" } }
         }
       },
@@ -314,21 +329,30 @@
           "status": { "$ref": "#/components/schemas/RunStatus" },
           "mode": { "$ref": "#/components/schemas/Mode" },
           "completedAt": { "type": "string", "format": "date-time" },
-          "summary": { "$ref": "#/components/schemas/Summary" }
+          "summary": { "$ref": "#/components/schemas/Summary" },
+          "bcVersion": { "type": ["string", "null"] },
+          "desiredAppCount": { "type": "integer" }, "currentAppCount": { "type": "integer" },
+          "attentionAppCount": { "type": "integer" }, "failedAppCount": { "type": "integer" },
+          "health": { "enum": ["current", "attention", "failed", "unknown"] }
         }
       },
-      "CurrentState": {
+      "DesiredAppState": {
         "type": "object",
-        "required": ["customerId", "tenantId", "applicationId", "applicationName", "lastOutcome", "verifiedAt", "eventId"],
+        "required": ["customerId", "tenantId", "applicationId", "applicationName", "state", "updatedAt", "eventId"],
         "properties": {
           "customerId": { "type": "string" },
           "tenantId": { "type": "string" },
           "tenantLabel": { "type": ["string", "null"] },
           "applicationId": { "type": "string" },
           "applicationName": { "type": "string" },
-          "version": { "type": ["string", "null"] },
+          "publisher": { "type": ["string", "null"] },
+          "desiredVersion": { "type": ["string", "null"] },
+          "installedVersion": { "type": ["string", "null"] },
+          "observedAt": { "type": ["string", "null"], "format": "date-time" },
+          "state": { "enum": ["current", "outdated", "failed", "unavailable", "planned"] },
           "lastOutcome": { "$ref": "#/components/schemas/Outcome" },
-          "verifiedAt": { "type": "string", "format": "date-time" },
+          "safeMessage": { "type": ["string", "null"] },
+          "updatedAt": { "type": "string", "format": "date-time" },
           "eventId": { "type": "string" }
         }
       },
@@ -342,10 +366,10 @@
       },
       "CustomerDetail": {
         "type": "object",
-        "required": ["customer", "currentState"],
+        "required": ["customer", "desiredAppState"],
         "properties": {
           "customer": { "$ref": "#/components/schemas/CustomerLatest" },
-          "currentState": { "type": "array", "items": { "$ref": "#/components/schemas/CurrentState" } }
+          "desiredAppState": { "type": "array", "items": { "$ref": "#/components/schemas/DesiredAppState" } }
         }
       },
       "DeploymentPage": {

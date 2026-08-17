@@ -13,7 +13,7 @@ public sealed class TableDeploymentStore(TableServiceClient serviceClient) : IDe
     private readonly TableClient _runs = serviceClient.GetTableClient("DeploymentRuns");
     private readonly TableClient _operations = serviceClient.GetTableClient("DeploymentOperations");
     private readonly TableClient _feed = serviceClient.GetTableClient("DeploymentFeed");
-    private readonly TableClient _state = serviceClient.GetTableClient("CustomerCurrentState");
+    private readonly TableClient _desiredState = serviceClient.GetTableClient("CustomerDesiredState");
     private readonly TableClient _latest = serviceClient.GetTableClient("CustomerLatest");
     private readonly TableClient _index = serviceClient.GetTableClient("DeploymentEventIndex");
     private readonly TableClient _artifactSources = serviceClient.GetTableClient("ArtifactSources");
@@ -76,7 +76,7 @@ public sealed class TableDeploymentStore(TableServiceClient serviceClient) : IDe
 
         await UpdateLatestAsync(item, json, cancellationToken);
         if (item.Mode == DeploymentMode.Execute)
-            await UpdateCurrentStateAsync(item, cancellationToken);
+            await UpdateDesiredStateAsync(item, cancellationToken);
 
         await _index.UpdateEntityAsync(new TableEntity("event", hash)
         {
@@ -139,21 +139,22 @@ public sealed class TableDeploymentStore(TableServiceClient serviceClient) : IDe
         {
             var item = DeserializeEvent(entity.GetString("EventJson"));
             if (item is null || (customerIds is not null && !customerIds.Contains(item.Customer.Id))) continue;
-            result.Add(new CustomerLatestStatus { CustomerId = item.Customer.Id, CustomerName = item.Customer.Name,
+            var latest = new CustomerLatestStatus { CustomerId = item.Customer.Id, CustomerName = item.Customer.Name,
                 EventId = item.EventId, Status = item.Status, Mode = item.Mode, CompletedAt = item.CompletedAt, Summary = item.Summary,
-                BcVersion = item.ArtifactSource?.BcVersion, PackageVersion = item.ArtifactSource?.PackageVersion });
+                BcVersion = item.ArtifactSource?.BcVersion, PackageVersion = item.ArtifactSource?.PackageVersion };
+            result.Add(await WithHealthAsync(latest, item.Customer.Id, cancellationToken));
         }
         return result.OrderBy(item => item.CustomerName).ToList();
     }
 
-    public async Task<IReadOnlyList<CurrentDeploymentState>> GetCurrentStateAsync(string customerId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<CustomerDesiredAppState>> GetDesiredAppStateAsync(string customerId, CancellationToken cancellationToken = default)
     {
         await EnsureInitializedAsync(cancellationToken);
-        var result = new List<CurrentDeploymentState>();
+        var result = new List<CustomerDesiredAppState>();
         var filter = TableClient.CreateQueryFilter($"PartitionKey eq {customerId}");
-        await foreach (var entity in _state.QueryAsync<TableEntity>(filter, cancellationToken: cancellationToken))
+        await foreach (var entity in _desiredState.QueryAsync<TableEntity>(filter, cancellationToken: cancellationToken))
         {
-            var item = JsonSerializer.Deserialize<CurrentDeploymentState>(entity.GetString("StateJson")!, JsonOptions);
+            var item = JsonSerializer.Deserialize<CustomerDesiredAppState>(entity.GetString("StateJson")!, JsonOptions);
             if (item is not null) result.Add(item);
         }
         return result.OrderBy(item => item.TenantId).ThenBy(item => item.ApplicationName).ToList();
@@ -201,27 +202,59 @@ public sealed class TableDeploymentStore(TableServiceClient serviceClient) : IDe
         }, TableUpdateMode.Replace, cancellationToken);
     }
 
-    private async Task UpdateCurrentStateAsync(DeploymentEvent item, CancellationToken cancellationToken)
+    private async Task UpdateDesiredStateAsync(DeploymentEvent item, CancellationToken cancellationToken)
     {
-        foreach (var operation in item.Operations.Where(operation => operation.Scope.Equals("tenant", StringComparison.OrdinalIgnoreCase) && InMemoryDeploymentStore.IsVerified(operation)))
+        var existingByTenant = new Dictionary<string, List<(string Row, CustomerDesiredAppState State)>>(StringComparer.OrdinalIgnoreCase);
+        var filter = TableClient.CreateQueryFilter($"PartitionKey eq {item.Customer.Id}");
+        await foreach (var entity in _desiredState.QueryAsync<TableEntity>(filter, cancellationToken: cancellationToken))
         {
-            var tenantId = operation.TenantId ?? "service";
-            var appId = operation.ApplicationId ?? operation.ApplicationName.ToLowerInvariant().Replace(' ', '-');
-            var state = new CurrentDeploymentState
+            var existing = JsonSerializer.Deserialize<CustomerDesiredAppState>(entity.GetString("StateJson")!, JsonOptions);
+            if (existing is null) continue;
+            (existingByTenant.TryGetValue(existing.TenantId, out var entries) ? entries : existingByTenant[existing.TenantId] = []).Add((entity.RowKey, existing));
+        }
+        foreach (var tenant in item.TenantAppStates.GroupBy(state => state.TenantId, StringComparer.OrdinalIgnoreCase))
+        {
+            var expectedIds = tenant.Select(state => state.ApplicationId ?? state.ApplicationName.ToLowerInvariant().Replace(' ', '-')).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (!existingByTenant.TryGetValue(tenant.Key, out var entries)) continue;
+            foreach (var existing in entries.Where(entry => !expectedIds.Contains(entry.State.ApplicationId)))
+                await _desiredState.DeleteEntityAsync(item.Customer.Id, existing.Row, ETag.All, cancellationToken);
+        }
+        foreach (var snapshot in item.TenantAppStates)
+        {
+            var appId = snapshot.ApplicationId ?? snapshot.ApplicationName.ToLowerInvariant().Replace(' ', '-');
+            var row = Hash($"{snapshot.TenantId}|{appId}");
+            var existing = await _desiredState.GetEntityIfExistsAsync<TableEntity>(item.Customer.Id, row, cancellationToken: cancellationToken);
+            if (existing.HasValue && existing.Value!.GetDateTimeOffset("UpdatedAt") > item.CompletedAt) continue;
+            var previous = existing.HasValue ? JsonSerializer.Deserialize<CustomerDesiredAppState>(existing.Value!.GetString("StateJson")!, JsonOptions) : null;
+            var state = new CustomerDesiredAppState
             {
-                CustomerId = item.Customer.Id, TenantId = tenantId, TenantLabel = operation.TenantLabel,
-                ApplicationId = appId, ApplicationName = operation.ApplicationName,
-                Version = operation.ObservedVersion ?? operation.TargetVersion, LastOutcome = operation.Outcome,
-                VerifiedAt = item.CompletedAt, EventId = item.EventId
+                CustomerId = item.Customer.Id, TenantId = snapshot.TenantId, TenantLabel = snapshot.TenantLabel,
+                ApplicationId = appId, ApplicationName = snapshot.ApplicationName, Publisher = snapshot.Publisher,
+                DesiredVersion = snapshot.DesiredVersion, InstalledVersion = snapshot.InstalledVersion ?? previous?.InstalledVersion,
+                ObservedAt = snapshot.InstalledVersion is null ? previous?.ObservedAt : snapshot.ObservedAt ?? item.CompletedAt,
+                State = snapshot.State, LastOutcome = snapshot.LastOutcome, SafeMessage = snapshot.SafeMessage,
+                UpdatedAt = item.CompletedAt, EventId = item.EventId
             };
-            var row = Hash($"{tenantId}|{appId}");
-            var existing = await _state.GetEntityIfExistsAsync<TableEntity>(item.Customer.Id, row, cancellationToken: cancellationToken);
-            if (existing.HasValue && existing.Value!.GetDateTimeOffset("VerifiedAt") > item.CompletedAt) continue;
-            await _state.UpsertEntityAsync(new TableEntity(item.Customer.Id, row)
+            await _desiredState.UpsertEntityAsync(new TableEntity(item.Customer.Id, row)
             {
-                ["VerifiedAt"] = item.CompletedAt, ["StateJson"] = JsonSerializer.Serialize(state, JsonOptions)
+                ["UpdatedAt"] = item.CompletedAt, ["StateJson"] = JsonSerializer.Serialize(state, JsonOptions)
             }, TableUpdateMode.Replace, cancellationToken);
         }
+    }
+
+    private async Task<CustomerLatestStatus> WithHealthAsync(CustomerLatestStatus item, string customerId, CancellationToken cancellationToken)
+    {
+        var filter = TableClient.CreateQueryFilter($"PartitionKey eq {customerId}");
+        var states = new List<CustomerDesiredAppState>();
+        await foreach (var entity in _desiredState.QueryAsync<TableEntity>(filter, cancellationToken: cancellationToken))
+        {
+            var state = JsonSerializer.Deserialize<CustomerDesiredAppState>(entity.GetString("StateJson")!, JsonOptions);
+            if (state is not null) states.Add(state);
+        }
+        var failed = states.Count(state => state.State == "failed");
+        var current = states.Count(state => state.State == "current");
+        var attention = states.Count - current - failed;
+        return new CustomerLatestStatus { CustomerId = item.CustomerId, CustomerName = item.CustomerName, EventId = item.EventId, Status = item.Status, Mode = item.Mode, CompletedAt = item.CompletedAt, Summary = item.Summary, BcVersion = item.BcVersion, PackageVersion = item.PackageVersion, DesiredAppCount = states.Count, CurrentAppCount = current, AttentionAppCount = attention, FailedAppCount = failed, Health = failed > 0 ? "failed" : attention > 0 ? "attention" : states.Count > 0 ? "current" : "unknown" };
     }
 
     private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
@@ -231,7 +264,7 @@ public sealed class TableDeploymentStore(TableServiceClient serviceClient) : IDe
         try
         {
             if (_initialized) return;
-            foreach (var table in new[] { _runs, _operations, _feed, _state, _latest, _index, _artifactSources, _artifactSourceIndex, _artifactSourceLatest })
+            foreach (var table in new[] { _runs, _operations, _feed, _desiredState, _latest, _index, _artifactSources, _artifactSourceIndex, _artifactSourceLatest })
                 await table.CreateIfNotExistsAsync(cancellationToken);
             _initialized = true;
         }

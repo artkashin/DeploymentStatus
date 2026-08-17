@@ -47,6 +47,17 @@ public static class DeploymentValidation
             if (operation.SafeMessage?.Length > 2000) errors.Add("operations[].safeMessage cannot exceed 2000 characters.");
             if (operation.InternalError?.Length > 8192) errors.Add("operations[].internalError cannot exceed 8192 characters.");
         }
+        if (item.TenantAppStates is null) { errors.Add("tenantAppStates is required."); return errors; }
+        if (item.TenantAppStates.Count > 10000) errors.Add("tenantAppStates cannot exceed 10000 items.");
+        foreach (var state in item.TenantAppStates)
+        {
+            if (state is null) { errors.Add("tenantAppStates cannot contain null items."); continue; }
+            Required(state.TenantId, "tenantAppStates[].tenantId", errors, 200);
+            Required(state.ApplicationName, "tenantAppStates[].applicationName", errors, 250);
+            if (state.State is not ("current" or "outdated" or "failed" or "unavailable" or "planned"))
+                errors.Add("tenantAppStates[].state is invalid.");
+            if (state.SafeMessage?.Length > 2000) errors.Add("tenantAppStates[].safeMessage cannot exceed 2000 characters.");
+        }
         return errors;
     }
     private static void Required(string? value, string name, ICollection<string> errors, int max)

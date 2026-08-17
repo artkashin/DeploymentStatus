@@ -23,10 +23,11 @@ public sealed class DeploymentStoreTests
         var failed = Event("AdaptiveBS~CIApp:124:1:tappers:execute", DeploymentRunStatus.Failed, DeploymentOutcome.Failed, "2.0.0.0");
         failed.CompletedAt = failed.CompletedAt.AddMinutes(1);
         await store.RegisterAsync(failed);
-        var state = Assert.Single(await store.GetCurrentStateAsync("tappers"));
-        Assert.Equal("2.0.0.0", state.Version);
-        Assert.Equal("AdaptiveBS~CIApp:123:1:tappers:execute", state.EventId);
-        Assert.Equal(DeploymentOutcome.Success, state.LastOutcome);
+        var state = Assert.Single(await store.GetDesiredAppStateAsync("tappers"));
+        Assert.Equal("2.0.0.0", state.InstalledVersion);
+        Assert.Equal("AdaptiveBS~CIApp:124:1:tappers:execute", state.EventId);
+        Assert.Equal(DeploymentOutcome.Failed, state.LastOutcome);
+        Assert.Equal("failed", state.State);
         Assert.Equal(DeploymentRunStatus.Failed, Assert.Single(await store.GetCustomersAsync(null)).Status);
     }
 
@@ -61,7 +62,7 @@ public sealed class DeploymentStoreTests
         Assert.Single(page.Items);
         Assert.Equal(DeploymentMode.DryRun, page.Items[0].Mode);
         Assert.Null(page.NextCursor);
-        Assert.Equal("1", Assert.Single(await store.GetCurrentStateAsync("tappers")).Version);
+        Assert.Equal("1", Assert.Single(await store.GetDesiredAppStateAsync("tappers")).InstalledVersion);
     }
 
     [Fact]
@@ -103,7 +104,8 @@ public sealed class DeploymentStoreTests
             StartedAt = started,
             CompletedAt = started.AddMinutes(2),
             Summary = new DeploymentSummary { Total = 1, Succeeded = outcome == DeploymentOutcome.Success ? 1 : 0, Failed = outcome == DeploymentOutcome.Failed ? 1 : 0 },
-            Operations = [new DeploymentOperation { ApplicationId = "app", ApplicationName = "App", TenantId = "default", Action = "upgrade", Outcome = outcome, TargetVersion = version, ObservedVersion = outcome == DeploymentOutcome.Success ? version : null, SafeMessage = "Update failed." }]
+            Operations = [new DeploymentOperation { ApplicationId = "app", ApplicationName = "App", TenantId = "default", Action = "upgrade", Outcome = outcome, TargetVersion = version, ObservedVersion = outcome == DeploymentOutcome.Success ? version : null, SafeMessage = "Update failed." }],
+            TenantAppStates = [new TenantAppState { TenantId = "default", ApplicationId = "app", ApplicationName = "App", DesiredVersion = version, InstalledVersion = version, ObservedAt = started.AddMinutes(2), State = outcome == DeploymentOutcome.Failed ? "failed" : "current", LastOutcome = outcome }]
         };
     }
 }

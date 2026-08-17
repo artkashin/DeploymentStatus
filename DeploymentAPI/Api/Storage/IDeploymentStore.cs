@@ -8,7 +8,7 @@ public interface IDeploymentStore
     Task<PagedDeployments> QueryAsync(DeploymentQuery query, CancellationToken cancellationToken = default);
     Task<DeploymentEvent?> GetAsync(string eventId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<CustomerLatestStatus>> GetCustomersAsync(IReadOnlySet<string>? customerIds, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<CurrentDeploymentState>> GetCurrentStateAsync(string customerId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<CustomerDesiredAppState>> GetDesiredAppStateAsync(string customerId, CancellationToken cancellationToken = default);
     Task<bool> RegisterArtifactSourceAsync(ArtifactSource item, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ArtifactSource>> GetArtifactSourcesAsync(CancellationToken cancellationToken = default);
 }

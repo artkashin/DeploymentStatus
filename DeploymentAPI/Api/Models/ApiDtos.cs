@@ -8,9 +8,12 @@ public sealed record DeploymentOperationDto(string Scope, string? TenantId, stri
     string? ApplicationId, string ApplicationName, string? Publisher, string? PreviousVersion,
     string? TargetVersion, string? ObservedVersion, string Action, DeploymentOutcome Outcome,
     long? DurationMs, string? Message, string? InternalError);
+public sealed record TenantAppStateDto(string TenantId, string? TenantLabel, string? ApplicationId,
+    string ApplicationName, string? Publisher, string? DesiredVersion, string? InstalledVersion,
+    DateTimeOffset? ObservedAt, string State, DeploymentOutcome? LastOutcome, string? Message);
 public sealed record DeploymentEventDto(string EventId, DeploymentSourceDto Source, DeploymentCustomer Customer,
     DeploymentMode Mode, DeploymentRunStatus Status, DateTimeOffset StartedAt, DateTimeOffset CompletedAt,
-    string DetailCompleteness, DeploymentSummary Summary, ArtifactSourceReferenceDto? ArtifactSource, IReadOnlyList<DeploymentOperationDto>? Operations);
+    string DetailCompleteness, DeploymentSummary Summary, ArtifactSourceReferenceDto? ArtifactSource, IReadOnlyList<TenantAppStateDto>? TenantAppStates, IReadOnlyList<DeploymentOperationDto>? Operations);
 public sealed record DeploymentPageResponse(IReadOnlyList<DeploymentEventDto> Items, string? NextCursor);
 public sealed record ArtifactSourceReferenceDto(string Branch, string BcVersion, long? RunId, string? RunUrl,
     string? ArtifactName, string? PackageVersion, bool Usable, string? Conclusion, string? Warning);
@@ -36,13 +39,18 @@ public static class DeploymentMapping
                 operation.Outcome, operation.DurationMs, operation.SafeMessage,
                 adaptive ? operation.InternalError : null)).ToList()
             : null;
+        IReadOnlyList<TenantAppStateDto>? tenantAppStates = includeOperations
+            ? item.TenantAppStates.Select(state => new TenantAppStateDto(state.TenantId, state.TenantLabel,
+                state.ApplicationId, state.ApplicationName, state.Publisher, state.DesiredVersion,
+                state.InstalledVersion, state.ObservedAt, state.State, state.LastOutcome, state.SafeMessage)).ToList()
+            : null;
         ArtifactSourceReferenceDto? artifactSource = item.ArtifactSource is null ? null : new ArtifactSourceReferenceDto(
             item.ArtifactSource.Branch, item.ArtifactSource.BcVersion,
             adaptive ? item.ArtifactSource.RunId : null, adaptive ? item.ArtifactSource.RunUrl : null,
             adaptive ? item.ArtifactSource.ArtifactName : null, item.ArtifactSource.PackageVersion,
             item.ArtifactSource.Usable, adaptive ? item.ArtifactSource.Conclusion : null, item.ArtifactSource.Warning);
         return new DeploymentEventDto(item.EventId, source, item.Customer, item.Mode, item.Status,
-            item.StartedAt, item.CompletedAt, item.DetailCompleteness, item.Summary, artifactSource, operations);
+            item.StartedAt, item.CompletedAt, item.DetailCompleteness, item.Summary, artifactSource, tenantAppStates, operations);
     }
 
     public static ArtifactSourceDto ToDto(this ArtifactSource item) => new(item.SourceId, item.Repository, item.Workflow,
