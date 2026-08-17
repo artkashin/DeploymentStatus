@@ -11,6 +11,7 @@ import './styles.css'
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 15_000, refetchInterval: 30_000 } } })
 
 await msalInstance.initialize()
+await msalInstance.handleRedirectPromise()
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <MsalProvider instance={msalInstance}>
