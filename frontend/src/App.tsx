@@ -21,8 +21,12 @@ function Shell() {
   const { instance, accounts } = useMsal()
   const api = useMemo(() => new ApiClient(instance, accounts[0]), [instance, accounts])
   const me = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const recoverSession = () => {
+    instance.clearCache()
+    void instance.loginRedirect({ scopes: [apiScope], prompt: 'select_account' })
+  }
   if (me.isLoading) return <Centered><Spinner label="Checking access…" /></Centered>
-  if (me.error) return <ErrorState error={me.error} onSignIn={() => void instance.loginRedirect({ scopes: [apiScope], prompt: 'select_account' })} />
+  if (me.error) return <ErrorState error={me.error} onSignIn={recoverSession} />
   return <div className="app-shell">
     <header><Link to="/" className="brand"><span className="brand-mark small">A</span><span>Deployment Status</span></Link><div className="identity"><span>{me.data?.name}</span>{!authDisabled && <Button appearance="subtle" icon={<SignOutRegular />} onClick={() => void instance.logoutRedirect()}>Sign out</Button>}</div></header>
     <Routes>
