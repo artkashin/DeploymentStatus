@@ -114,36 +114,50 @@ async function downloadFleetSnapshot(items: CustomerLatest[], sources: ArtifactS
   const rowHeight = 42
   const height = 226 + rows.length * rowHeight + 48
   const status = (health: CustomerLatest['health']) => health === 'current' ? ['Current', '#067647', '#dcfaee'] : health === 'failed' ? ['Update failed', '#b42318', '#ffe4e8'] : health === 'attention' ? ['Needs attention', '#9a6700', '#fff3cd'] : ['Not reported', '#475467', '#f2f4f7']
-  const sourceRows = sources.map((source, index) => {
+  const canvas = document.createElement('canvas')
+  canvas.width = width * 2
+  canvas.height = height * 2
+  const context = canvas.getContext('2d')!
+  context.scale(2, 2)
+  const text = (value: string, x: number, y: number, font = '14px "Segoe UI", Arial, sans-serif', color = '#101828') => { context.font = font; context.fillStyle = color; context.fillText(value, x, y) }
+  context.fillStyle = '#f9fafb'; context.fillRect(0, 0, width, height)
+  text('System Info Dashboard', 28, 44, '700 25px "Segoe UI", Arial, sans-serif')
+  text(`Fleet Status Overview · exported ${new Date().toLocaleString()}`, 28, 70, '14px "Segoe UI", Arial, sans-serif', '#475467')
+  context.fillStyle = '#fff'; context.strokeStyle = '#d0d5dd'; context.fillRect(28, 88, 1384, 76); context.strokeRect(28, 88, 1384, 76)
+  text('Artifact baselines', 48, 121, '700 17px "Segoe UI", Arial, sans-serif')
+  sources.forEach((source, index) => {
+    const x = 390 + index * 510
     const label = source.usable ? source.warning ? 'Usable with warning' : 'Usable' : 'Unavailable'
-    const fill = source.usable && !source.warning ? '#dcfaee' : source.usable ? '#fff3cd' : '#ffe4e8'
-    const color = source.usable && !source.warning ? '#067647' : source.usable ? '#9a6700' : '#b42318'
-    return `<text x="${390 + index * 510}" y="109" class="source">BC${xml(source.bcVersion)} · ${xml(source.branch)}</text><text x="${390 + index * 510}" y="139" class="version">${xml(source.packageVersion || 'No package')}</text><rect x="${490 + index * 510}" y="120" width="${label.length * 8 + 26}" height="26" rx="13" fill="${fill}"/><text x="${503 + index * 510}" y="138" class="badge" fill="${color}">${label}</text>`
-  }).join('')
-  const tableRows = rows.map((row, index) => {
+    const [color, fill] = source.usable && !source.warning ? ['#067647', '#dcfaee'] : source.usable ? ['#9a6700', '#fff3cd'] : ['#b42318', '#ffe4e8']
+    text(`BC${source.bcVersion} · ${source.branch}`, x, 109, '13px "Segoe UI", Arial, sans-serif', '#475467')
+    text(source.packageVersion || 'No package', x, 139, '700 14px "Segoe UI", Arial, sans-serif')
+    context.fillStyle = fill; context.beginPath(); context.roundRect(x + 100, 120, label.length * 8 + 26, 26, 13); context.fill()
+    text(label, x + 113, 138, '700 12px "Segoe UI", Arial, sans-serif', color)
+  })
+  context.fillStyle = '#fff'; context.strokeStyle = '#d0d5dd'; context.fillRect(28, 180, 1384, height - 228); context.strokeRect(28, 180, 1384, height - 228)
+  ;[['CUSTOMER NAME', 48], ['BC VERSION', 405], ['INSTALLED VERSION', 755], ['INSTALLED DATE', 1040], ['STATUS', 1290]].forEach(([label, x]) => text(String(label), Number(x), 211, '700 12px "Segoe UI", Arial, sans-serif', '#475467'))
+  rows.forEach((row, index) => {
     const y = 226 + index * rowHeight
-    if (row.kind === 'customer') return `<rect x="28" y="${y}" width="1384" height="${rowHeight}" fill="#f2f4f7"/><text x="48" y="${y + 27}" class="customer">${xml(row.customer)}</text><text x="405" y="${y + 27}" class="cell">${xml(row.bc)}</text>`
+    if (row.kind === 'customer') {
+      context.fillStyle = '#f2f4f7'; context.fillRect(28, y, 1384, rowHeight)
+      text(row.customer, 48, y + 27, '700 14px "Segoe UI", Arial, sans-serif'); text(row.bc, 405, y + 27)
+      return
+    }
     const [label, color, fill] = status(row.status)
-    return `<rect x="28" y="${y}" width="1384" height="${rowHeight}" fill="#fff"/><line x1="28" y1="${y + rowHeight}" x2="1412" y2="${y + rowHeight}" stroke="#e4e7ec"/><text x="62" y="${y + 27}" class="cell">${xml(row.customer)}</text><text x="755" y="${y + 27}" class="version">${xml(row.version)}</text><text x="1040" y="${y + 27}" class="cell">${xml(row.date)}</text><circle cx="1336" cy="${y + 21}" r="10" fill="${fill}" stroke="${color}"/><text x="1354" y="${y + 26}" class="status" fill="${color}">${label}</text>`
-  }).join('')
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><style>text{font-family:Segoe UI,Arial,sans-serif;fill:#101828}.title{font-size:25px;font-weight:700}.subtitle{font-size:14px;fill:#475467}.source{font-size:13px;fill:#475467}.version{font-size:14px;font-weight:700}.badge{font-size:12px;font-weight:700}.head{font-size:12px;font-weight:700;fill:#475467;letter-spacing:.4px}.customer{font-size:14px;font-weight:700}.cell{font-size:14px}.status{font-size:12px;font-weight:700}</style><rect width="100%" height="100%" fill="#f9fafb"/><text x="28" y="44" class="title">System Info Dashboard</text><text x="28" y="70" class="subtitle">Fleet Status Overview · exported ${xml(new Date().toLocaleString())}</text><rect x="28" y="88" width="1384" height="76" rx="2" fill="#fff" stroke="#d0d5dd"/><text x="48" y="121" class="title" style="font-size:17px">Artifact baselines</text>${sourceRows}<rect x="28" y="180" width="1384" height="${height - 228}" fill="#fff" stroke="#d0d5dd"/><text x="48" y="211" class="head">CUSTOMER NAME</text><text x="405" y="211" class="head">BC VERSION</text><text x="755" y="211" class="head">INSTALLED VERSION</text><text x="1040" y="211" class="head">INSTALLED DATE</text><text x="1290" y="211" class="head">STATUS</text>${tableRows}</svg>`
-  const image = new Image()
-  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }))
-  try {
-    await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error('Could not create fleet snapshot.')); image.src = url })
-    const canvas = document.createElement('canvas')
-    canvas.width = width * 2
-    canvas.height = height * 2
-    const context = canvas.getContext('2d')!
-    context.scale(2, 2)
-    context.drawImage(image, 0, 0)
-    const link = document.createElement('a')
-    link.href = canvas.toDataURL('image/png')
-    link.download = `deployment-fleet-${new Date().toISOString().slice(0, 10)}.png`
-    link.click()
-  } finally { URL.revokeObjectURL(url) }
+    context.strokeStyle = '#e4e7ec'; context.beginPath(); context.moveTo(28, y + rowHeight); context.lineTo(1412, y + rowHeight); context.stroke()
+    text(row.customer, 62, y + 27); text(row.version, 755, y + 27, '700 14px "Segoe UI", Arial, sans-serif'); text(row.date, 1040, y + 27)
+    context.fillStyle = fill; context.strokeStyle = color; context.beginPath(); context.arc(1336, y + 21, 10, 0, Math.PI * 2); context.fill(); context.stroke(); text(label, 1354, y + 26, '700 12px "Segoe UI", Arial, sans-serif', color)
+  })
+  const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'))
+  if (!blob) throw new Error('Could not create fleet snapshot.')
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `deployment-fleet-${new Date().toISOString().slice(0, 10)}.png`
+  document.body.append(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(link.href), 1000)
 }
-function xml(value: string) { return value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[character]!) }
 function FleetTable({ items }: { items: CustomerLatest[]; sources: ArtifactSource[] }) { if (!items.length) return <Empty text="No authoritative deployment events have been received yet." />; return <div className="table-wrap fleet-table"><table><thead><tr><th>Customer name</th><th>BC version</th><th>Installed version</th><th>Installed date</th><th className="status-column">Status</th></tr></thead><tbody>{items.flatMap(item => [<tr key={item.customerId} className="fleet-customer"><td><Link to={`/customers/${item.customerId}`}><strong>{item.customerName}</strong></Link></td><td>{item.bcVersion ? `BC${item.bcVersion}` : 'Not reported'}</td><td></td><td></td><td></td></tr>, ...item.tenants.map(tenant => { const label = tenant.health === 'current' ? 'Current' : tenant.health === 'failed' ? 'Update failed' : tenant.health === 'attention' ? 'Needs attention' : 'Not reported'; return <tr key={`${item.customerId}-${tenant.tenantId}`} className={`fleet-${tenant.health}`}><td className="tenant-name">↳&nbsp;&nbsp;{tenant.tenantLabel || tenant.tenantId}</td><td></td><td><span className={`version-pill ${tenant.health === 'current' ? 'current' : tenant.health === 'failed' ? 'failed' : ''}`}>{tenant.installedVersion || 'Unavailable'}</span></td><td>{tenant.installedAt ? <Time value={tenant.installedAt} /> : '—'}</td><td className="status-column"><Tooltip content={label} relationship="label">{tenant.health === 'current' ? <CheckmarkCircleRegular className="status-icon current" aria-label={label} /> : <WarningRegular className={`status-icon ${tenant.health === 'failed' ? 'failed' : 'warning'}`} aria-label={label} />}</Tooltip><span className="sr-only">{label}</span></td></tr> })])}</tbody></table></div> }
 function DesiredAppTable({ grouped }: { grouped: Record<string, import('./types').DesiredAppState[]> }) { if (Object.keys(grouped).length === 0) return <Empty text="No desired-app inventory has been reported by an execute deployment yet." />; return <>{Object.entries(grouped).map(([tenant, states]) => <div className="tenant" key={tenant}><h3>{tenant}</h3><div className="table-wrap"><table className="desired-app-table"><thead><tr><th>Application</th><th>Desired version</th><th>Installed version</th><th>Installed date</th><th>Status</th></tr></thead><tbody>{states!.map(state => { const label = state.state === 'current' ? 'Current' : state.state === 'failed' ? 'Update failed' : state.state === 'outdated' ? 'Outdated' : state.state === 'planned' ? 'Planned' : 'Installed version unavailable'; return <tr key={`${state.tenantId}-${state.applicationId}`} className={`app-${state.state}`}><td><strong>{state.applicationName}</strong>{state.safeMessage && <small>{state.safeMessage}</small>}</td><td>{state.desiredVersion || 'Package unavailable'}</td><td>{state.installedVersion || 'Unavailable'}</td><td>{state.installedAt ? <Time value={state.installedAt} /> : '—'}</td><td>{label}</td></tr> })}</tbody></table></div></div>)}</> }
 function DeploymentTable({ items }: { items: Deployment[] }) { if (!items.length) return <Empty text="No deployments match these filters." />; return <div className="table-wrap"><table><thead><tr><th>Status</th><th>Customer</th><th>Mode</th><th>Completed</th><th>Result</th><th></th></tr></thead><tbody>{items.map(item => <tr key={item.eventId}><td><Status status={item.status} /></td><td>{item.customer.name}</td><td>{item.mode === 'dryRun' ? 'Dry run' : 'Execute'}</td><td><Time value={item.completedAt} /></td><td>{item.summary.succeeded} ok · {item.summary.failed} failed</td><td><Link to={`/deployments/${encodeURIComponent(item.eventId)}`}>Details →</Link></td></tr>)}</tbody></table></div> }
