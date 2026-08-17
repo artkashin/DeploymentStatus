@@ -6,6 +6,7 @@
     "entraApiClientId": { "value": "00000000-0000-0000-0000-000000000000" },
     "functionAppName": { "value": "func-deployment-status-api" },
     "functionPlanName": { "value": "ASP-rgdeploymentstatus-ac50" },
-    "staticWebAppName": { "value": "swa-deployment-status" }
+    "staticWebAppName": { "value": "swa-deployment-status" },
+    "dashboardOrigins": { "value": ["https://deployments.adaptivenav.com"] }
   }
 }

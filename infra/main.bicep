@@ -17,6 +17,10 @@ param localOrigins array = [
   'http://localhost:5173'
   'http://127.0.0.1:5173'
 ]
+@description('Additional production dashboard origins, retained alongside the Static Web App default hostname.')
+param dashboardOrigins array = [
+  'https://deployments.adaptivenav.com'
+]
 
 var token = uniqueString(subscription().id, resourceGroup().id)
 var storageName = 'stds${token}'
@@ -83,7 +87,7 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
       minTlsVersion: '1.2'
       ftpsState: 'Disabled'
       cors: {
-        allowedOrigins: union([ 'https://${staticWebApp.properties.defaultHostname}' ], localOrigins)
+        allowedOrigins: union([ 'https://${staticWebApp.properties.defaultHostname}' ], dashboardOrigins, localOrigins)
         supportCredentials: false
       }
       appSettings: [

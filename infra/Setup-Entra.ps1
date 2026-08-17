@@ -2,7 +2,8 @@
 param(
     [string]$ApiDisplayName = 'DeploymentStatus API',
     [string]$SpaDisplayName = 'DeploymentStatus Dashboard',
-    [string]$StaticWebAppUrl,
+    [Alias('StaticWebAppUrl')]
+    [string[]]$StaticWebAppUrls = @(),
     [string]$AccessConfigPath = (Join-Path $PSScriptRoot 'customer-access.json')
 )
 
@@ -62,7 +63,10 @@ Invoke-Graph PATCH "applications/$($apiApp.id)" $apiBody | Out-Null
 
 $apiSp = @(az ad sp list --filter "appId eq '$($apiApp.appId)'" | ConvertFrom-Json) | Select-Object -First 1
 if (-not $apiSp) { $apiSp = az ad sp create --id $apiApp.appId | ConvertFrom-Json }
-Set-GroupRole $access.adaptiveGroupObjectId $apiSp.id ([string]$adaptiveRole.id)
+$adaptiveGroupIds = @($access.adaptiveGroupObjectIds)
+if (-not $adaptiveGroupIds -and $access.adaptiveGroupObjectId) { $adaptiveGroupIds = @([string]$access.adaptiveGroupObjectId) }
+if (-not $adaptiveGroupIds) { Write-Warning 'No Adaptive access groups are configured. Run Initialize-DeploymentStatusAdaptiveGroups.ps1 first.' }
+foreach ($groupId in $adaptiveGroupIds) { Set-GroupRole ([string]$groupId) $apiSp.id ([string]$adaptiveRole.id) }
 foreach ($customerId in $customerRoles.Keys) {
     $groupId = [string]$access.customers[$customerId]
     if ($groupId) { Set-GroupRole $groupId $apiSp.id ([string]$customerRoles[$customerId].id) }
@@ -74,7 +78,9 @@ $spaSp = @(az ad sp list --filter "appId eq '$($spaApp.appId)'" | ConvertFrom-Js
 if (-not $spaSp) { $spaSp = az ad sp create --id $spaApp.appId | ConvertFrom-Json }
 $redirectUris = [System.Collections.Generic.List[string]]::new()
 [void]$redirectUris.Add('http://localhost:5173')
-if ($StaticWebAppUrl) { [void]$redirectUris.Add($StaticWebAppUrl.TrimEnd('/')) }
+foreach ($staticWebAppUrl in $StaticWebAppUrls) {
+    if (-not [string]::IsNullOrWhiteSpace($staticWebAppUrl)) { [void]$redirectUris.Add($staticWebAppUrl.TrimEnd('/')) }
+}
 $spaBody = @{
     spa = @{ redirectUris = @($redirectUris) }
     requiredResourceAccess = @(@{ resourceAppId = $apiApp.appId; resourceAccess = @(@{ id = $scope.id; type = 'Scope' }) })
@@ -83,5 +89,5 @@ Invoke-Graph PATCH "applications/$($spaApp.id)" $spaBody | Out-Null
 
 Write-Host "DeploymentStatus API client ID: $($apiApp.appId)"
 Write-Host "DeploymentStatus SPA client ID: $($spaApp.appId)"
-if (-not $StaticWebAppUrl) { Write-Warning 'Run this script again with -StaticWebAppUrl after the Static Web App is provisioned.' }
+if (-not $StaticWebAppUrls) { Write-Warning 'Run this script again with -StaticWebAppUrls after the Static Web App is provisioned.' }
 Write-Host 'An Entra administrator must grant tenant-wide consent for the SPA Deployment.Read permission.'

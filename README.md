@@ -49,9 +49,11 @@ Set `AZURITE_CONNECTION_STRING=UseDevelopmentStorage=true` while running `dotnet
 
 ## Production setup
 
-1. Populate `infra/customer-access.json`, then run `infra/Setup-Entra.ps1` once without a Static Web App URL to create the API and SPA registrations. Record the emitted client IDs.
-2. Deploy `infra/main.bicep` with the production resource group, Entra tenant ID, and API client ID.
-3. Run `infra/Setup-Entra.ps1` again with `-StaticWebAppUrl` set to the Bicep output so the production PKCE redirect and group role assignments are idempotently applied.
+1. Run `infra/Initialize-DeploymentStatusAdaptiveGroups.ps1` as an Entra Groups Administrator to create the internal-members and approved-guests groups and write their IDs to `infra/customer-access.json`. Populate customer group IDs in the same file.
+2. Run `infra/Setup-Entra.ps1` once without a Static Web App URL to create the API and SPA registrations. Record the emitted client IDs.
+3. Deploy `infra/main.bicep` with the production resource group, Entra tenant ID, and API client ID.
+4. Run `infra/Setup-Entra.ps1` again with `-StaticWebAppUrls` set to every production dashboard URL so PKCE redirects and group role assignments are idempotently applied.
+5. After DNS CNAME validation, run `infra/Set-DeploymentStatusCustomDomain.ps1` to register the custom hostname, add its CORS origin, and update SPA redirects.
 4. Run `infra/Set-DeploymentReporterKey.ps1` to create the function-specific ingestion key and optionally write it to the DeployCD repository secret.
 5. Configure DeploymentStatus repository environments/variables used by `deploy-production.yml`, including `AZURE_RESOURCE_GROUP`.
 6. Configure DeployCD repository variable `DEPLOYMENT_STATUS_API_URL` and secret `DEPLOYMENT_STATUS_API_KEY`.
