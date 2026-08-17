@@ -256,6 +256,15 @@ public sealed class TableDeploymentStore(TableServiceClient serviceClient) : IDe
         var current = states.Count(state => state.State == "current");
         var attention = states.Count - current - failed;
         var tenants = states.GroupBy(state => state.TenantId, StringComparer.OrdinalIgnoreCase).Select(InMemoryDeploymentStore.TenantHealth).OrderBy(tenant => tenant.TenantLabel ?? tenant.TenantId).ToList();
+        // Older events do not have tenantAppStates. Their operation projection is still
+        // authoritative for the tenant identity and update outcome, so retain the tree
+        // while leaving unobserved installed fields empty.
+        if (tenants.Count == 0)
+        {
+            var latestEvent = await GetAsync(item.EventId, cancellationToken);
+            if (latestEvent is not null)
+                tenants = InMemoryDeploymentStore.TenantHealthFromOperations(latestEvent.Operations).OrderBy(tenant => tenant.TenantLabel ?? tenant.TenantId).ToList();
+        }
         return new CustomerLatestStatus { CustomerId = item.CustomerId, CustomerName = item.CustomerName, EventId = item.EventId, Status = item.Status, Mode = item.Mode, CompletedAt = item.CompletedAt, Summary = item.Summary, BcVersion = item.BcVersion, PackageVersion = item.PackageVersion, DesiredAppCount = states.Count, CurrentAppCount = current, AttentionAppCount = attention, FailedAppCount = failed, Health = failed > 0 ? "failed" : attention > 0 ? "attention" : states.Count > 0 ? "current" : "unknown", Tenants = tenants };
     }
 

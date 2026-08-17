@@ -103,6 +103,11 @@ public sealed class InMemoryDeploymentStore : IDeploymentStore
         var current = states.Count(state => state.State == "current");
         var attention = states.Count - current - failed;
         var tenants = states.GroupBy(state => state.TenantId, StringComparer.OrdinalIgnoreCase).Select(group => TenantHealth(group)).OrderBy(tenant => tenant.TenantLabel ?? tenant.TenantId).ToList();
+        // Reports created before tenantAppStates was introduced still contain the real
+        // tenant operations. Keep their hierarchy visible, but do not manufacture a
+        // desired-app inventory or an installation date from those historic operations.
+        if (tenants.Count == 0 && _events.TryGetValue(item.EventId, out var latestEvent))
+            tenants = TenantHealthFromOperations(latestEvent.Operations).OrderBy(tenant => tenant.TenantLabel ?? tenant.TenantId).ToList();
         return new CustomerLatestStatus { CustomerId = item.CustomerId, CustomerName = item.CustomerName, EventId = item.EventId, Status = item.Status, Mode = item.Mode, CompletedAt = item.CompletedAt, Summary = item.Summary, BcVersion = item.BcVersion, PackageVersion = item.PackageVersion, DesiredAppCount = states.Count, CurrentAppCount = current, AttentionAppCount = attention, FailedAppCount = failed, Health = failed > 0 ? "failed" : attention > 0 ? "attention" : states.Count > 0 ? "current" : "unknown", Tenants = tenants };
     }
 
@@ -111,6 +116,40 @@ public sealed class InMemoryDeploymentStore : IDeploymentStore
         var values = states.ToList(); var failed = values.Count(state => state.State == "failed"); var current = values.Count(state => state.State == "current"); var attention = values.Count - current - failed;
         var versions = values.Select(state => state.InstalledVersion).Where(version => !string.IsNullOrWhiteSpace(version)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         return new TenantLatestStatus { TenantId = values[0].TenantId, TenantLabel = values[0].TenantLabel, InstalledVersion = versions.Count == 1 ? versions[0] : versions.Count == 0 ? null : "Multiple versions", InstalledAt = values.Where(state => state.InstalledAt.HasValue).Select(state => state.InstalledAt).Max(), DesiredAppCount = values.Count, CurrentAppCount = current, AttentionAppCount = attention, FailedAppCount = failed, Health = failed > 0 ? "failed" : attention > 0 ? "attention" : values.Count > 0 ? "current" : "unknown" };
+    }
+
+    internal static IEnumerable<TenantLatestStatus> TenantHealthFromOperations(IEnumerable<DeploymentOperation> operations)
+    {
+        return operations
+            .Where(operation => string.Equals(operation.Scope, "tenant", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(operation.TenantId))
+            .GroupBy(operation => operation.TenantId!, StringComparer.OrdinalIgnoreCase)
+            .Select(tenant =>
+            {
+                var latestByApplication = tenant
+                    .GroupBy(operation => operation.ApplicationId ?? operation.ApplicationName, StringComparer.OrdinalIgnoreCase)
+                    .Select(application => application.Last())
+                    .ToList();
+                var failed = latestByApplication.Count(operation => operation.Outcome == DeploymentOutcome.Failed);
+                var current = latestByApplication.Count(IsVerified);
+                var attention = latestByApplication.Count - current - failed;
+                var observedVersions = latestByApplication.Select(operation => operation.ObservedVersion)
+                    .Where(version => !string.IsNullOrWhiteSpace(version)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+                return new TenantLatestStatus
+                {
+                    TenantId = tenant.Key,
+                    TenantLabel = tenant.Select(operation => operation.TenantLabel).FirstOrDefault(label => !string.IsNullOrWhiteSpace(label)),
+                    // A mixed or failed historic deployment cannot honestly claim one
+                    // installed version. New snapshot reports supply this field directly.
+                    InstalledVersion = failed == 0 && attention == 0 && observedVersions.Count == 1 ? observedVersions[0] : null,
+                    InstalledAt = null,
+                    DesiredAppCount = 0,
+                    CurrentAppCount = 0,
+                    AttentionAppCount = 0,
+                    FailedAppCount = 0,
+                    Health = failed > 0 ? "failed" : attention > 0 ? "attention" : latestByApplication.Count > 0 ? "current" : "unknown"
+                };
+            });
     }
 }
 

@@ -66,6 +66,23 @@ public sealed class DeploymentStoreTests
     }
 
     [Fact]
+    public async Task Historic_operation_report_retains_tenant_tree_without_inventing_installed_state()
+    {
+        var store = new InMemoryDeploymentStore();
+        var item = Event("AdaptiveBS~CIApp:300:1:tappers:execute", DeploymentRunStatus.Partial, DeploymentOutcome.Failed, "3.0.0.0");
+        item.TenantAppStates = [];
+        item.Operations[0].TenantLabel = "Production";
+
+        await store.RegisterAsync(item);
+
+        var tenant = Assert.Single(Assert.Single(await store.GetCustomersAsync(null)).Tenants);
+        Assert.Equal("Production", tenant.TenantLabel);
+        Assert.Equal("failed", tenant.Health);
+        Assert.Null(tenant.InstalledVersion);
+        Assert.Null(tenant.InstalledAt);
+    }
+
+    [Fact]
     public void Validation_rejects_invalid_contract()
     {
         var item = Event("", DeploymentRunStatus.Success, DeploymentOutcome.Success, "1");
