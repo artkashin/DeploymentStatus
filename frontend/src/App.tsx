@@ -1,8 +1,8 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { useIsAuthenticated, useMsal } from '@azure/msal-react'
 import { useQuery } from '@tanstack/react-query'
-import { Badge, Button, Card, Input, Select, Spinner, Tooltip } from '@fluentui/react-components'
-import { AlertRegular, ArrowClockwiseRegular, ArrowDownloadRegular, CheckmarkCircleRegular, FilterRegular, OpenRegular, SearchRegular, SignOutRegular, WarningRegular } from '@fluentui/react-icons'
+import { Badge, Button, Card, Input, Spinner, Tooltip } from '@fluentui/react-components'
+import { AlertRegular, ArrowClockwiseRegular, ArrowDownloadRegular, CheckmarkCircleRegular, OpenRegular, SearchRegular, SignOutRegular, WarningRegular } from '@fluentui/react-icons'
 import { Link, Route, Routes, useParams } from 'react-router-dom'
 import { ApiClient, duration, formatDate } from './api'
 import { apiScope, authDisabled } from './auth'
@@ -38,35 +38,18 @@ function Shell() {
 }
 
 function AdaptiveDashboard({ api }: { api: ApiClient }) {
-  const [filterOpen, setFilterOpen] = useState(false)
-  const [filters, setFilters] = useState({ customerId: '', status: '', mode: '', workflow: '', branch: '', from: '', to: '' })
   const customers = useQuery({ queryKey: ['customers'], queryFn: api.customers, refetchInterval: 30_000 })
   const artifactSources = useQuery({ queryKey: ['artifact-sources'], queryFn: api.artifactSources, refetchInterval: 30_000 })
-  const search = useMemo(() => {
-    const value = new URLSearchParams({ pageSize: '50' })
-    Object.entries(filters).forEach(([key, item]) => { if (item) value.set(key, key === 'from' || key === 'to' ? new Date(item).toISOString() : item) })
-    return value
-  }, [filters])
-  const deployments = useQuery({ queryKey: ['deployments', search.toString()], queryFn: () => api.deployments(search), refetchInterval: 30_000 })
   if (customers.error) return <ErrorState error={customers.error} />
   const latest = customers.data?.items ?? []
   return <main className="dashboard-main">
     <section className="baseline-strip" aria-label="AJEApps artifact baselines">
       <div className="baseline-title"><AlertRegular /><strong>Artifact baselines</strong></div>{artifactSources.isLoading ? <Spinner size="tiny" /> : artifactSources.error ? <span>Sources unavailable</span> : (artifactSources.data?.items ?? []).map(item => <Baseline key={item.sourceId} item={item} />)}
     </section>
-    <section className="fleet panel"><div className="fleet-toolbar"><strong>Fleet Status Overview</strong><div><Button appearance="subtle" icon={<FilterRegular />} aria-label="Toggle filters" onClick={() => setFilterOpen(!filterOpen)} /><Button appearance="subtle" icon={<ArrowDownloadRegular />} aria-label="Download fleet data" /></div></div>
-      {filterOpen && <div className="filters">
-        <Select aria-label="Customer" value={filters.customerId} onChange={(_, data) => setFilters({ ...filters, customerId: data.value })}><option value="">All customers</option>{latest.map(item => <option key={item.customerId} value={item.customerId}>{item.customerName}</option>)}</Select>
-        <Select aria-label="Status" value={filters.status} onChange={(_, data) => setFilters({ ...filters, status: data.value })}><option value="">All statuses</option>{['success', 'partial', 'failed', 'cancelled', 'skipped'].map(value => <option key={value}>{value}</option>)}</Select>
-        <Select aria-label="Mode" value={filters.mode} onChange={(_, data) => setFilters({ ...filters, mode: data.value })}><option value="">All modes</option><option value="execute">execute</option><option value="dryRun">dry run</option></Select>
-        <Input aria-label="Workflow" placeholder="Workflow" value={filters.workflow} onChange={(_, data) => setFilters({ ...filters, workflow: data.value })} />
-        <Input aria-label="Branch" placeholder="Branch" value={filters.branch} onChange={(_, data) => setFilters({ ...filters, branch: data.value })} />
-        <Input aria-label="From date" type="datetime-local" value={filters.from} onChange={(_, data) => setFilters({ ...filters, from: data.value })} />
-        <Input aria-label="To date" type="datetime-local" value={filters.to} onChange={(_, data) => setFilters({ ...filters, to: data.value })} />
-      </div>}
+    <section className="fleet panel"><div className="fleet-toolbar"><strong>Fleet Status Overview</strong><div><Button appearance="subtle" icon={<ArrowDownloadRegular />} aria-label="Download fleet data" /></div></div>
       {customers.isLoading ? <Spinner label="Loading fleet…" /> : <FleetTable items={latest} sources={artifactSources.data?.items ?? []} />}
     </section>
-    <footer className="dashboard-footer"><span>Showing {latest.length} customer{latest.length === 1 ? '' : 's'}</span><span>Last refreshed: {customers.data ? <Time value={customers.data.generatedAt} /> : '—'} <Button appearance="subtle" size="small" icon={<ArrowClockwiseRegular />} aria-label="Refresh dashboard" onClick={() => { void customers.refetch(); void deployments.refetch(); void artifactSources.refetch() }} /></span></footer>
+    <footer className="dashboard-footer"><span>Showing {latest.length} customer{latest.length === 1 ? '' : 's'}</span><span>Last refreshed: {customers.data ? <Time value={customers.data.generatedAt} /> : '—'} <Button appearance="subtle" size="small" icon={<ArrowClockwiseRegular />} aria-label="Refresh dashboard" onClick={() => { void customers.refetch(); void artifactSources.refetch() }} /></span></footer>
   </main>
 }
 
