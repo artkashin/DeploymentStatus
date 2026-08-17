@@ -39,14 +39,14 @@ function Shell() {
 
 function AdaptiveDashboard({ api }: { api: ApiClient }) {
   const [filters, setFilters] = useState({ customerId: '', status: '', mode: '', workflow: '', branch: '', from: '', to: '' })
-  const customers = useQuery({ queryKey: ['customers'], queryFn: api.customers })
-  const artifactSources = useQuery({ queryKey: ['artifact-sources'], queryFn: api.artifactSources })
+  const customers = useQuery({ queryKey: ['customers'], queryFn: api.customers, refetchInterval: 30_000 })
+  const artifactSources = useQuery({ queryKey: ['artifact-sources'], queryFn: api.artifactSources, refetchInterval: 30_000 })
   const search = useMemo(() => {
     const value = new URLSearchParams({ pageSize: '50' })
     Object.entries(filters).forEach(([key, item]) => { if (item) value.set(key, key === 'from' || key === 'to' ? new Date(item).toISOString() : item) })
     return value
   }, [filters])
-  const deployments = useQuery({ queryKey: ['deployments', search.toString()], queryFn: () => api.deployments(search) })
+  const deployments = useQuery({ queryKey: ['deployments', search.toString()], queryFn: () => api.deployments(search), refetchInterval: 30_000 })
   if (customers.error) return <ErrorState error={customers.error} />
   const latest = customers.data?.items ?? []
   const totals = latest.reduce((result, customer) => ({ ...result, [customer.status]: (result[customer.status] ?? 0) + 1 }), {} as Record<string, number>)
