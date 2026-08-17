@@ -23,7 +23,10 @@ export class ApiClient {
       headers.set('Authorization', `Bearer ${result.accessToken}`)
     }
     const response = await fetch(`${baseUrl}${path}`, { headers })
-    if (response.status === 401) throw new Error('The API rejected the signed-in session. Sign in again.')
+    if (response.status === 401) {
+      const detail = (await response.json().catch(() => null))?.error
+      throw new Error(detail ? `The API rejected the signed-in session: ${detail}` : 'The API rejected the signed-in session. Sign in again.')
+    }
     if (response.status === 403) throw new Error('Your account is not authorized for this deployment data.')
     if (!response.ok) throw new Error((await response.json().catch(() => null))?.error || `API request failed (${response.status}).`)
     return response.json() as Promise<T>
