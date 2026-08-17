@@ -55,3 +55,28 @@ public static class DeploymentValidation
         else if (value.Length > max) errors.Add($"{name} cannot exceed {max} characters.");
     }
 }
+
+public static class ArtifactSourceValidation
+{
+    public static IReadOnlyList<string> Validate(ArtifactSource? item)
+    {
+        var errors = new List<string>();
+        if (item is null) return ["Request body is required."];
+        if (item.SchemaVersion != "1.0") errors.Add("schemaVersion must be '1.0'.");
+        Required(item.SourceId, "sourceId", errors, 256);
+        Required(item.Repository, "repository", errors, 200); Required(item.Workflow, "workflow", errors, 200);
+        Required(item.Branch, "branch", errors, 120); Required(item.BcVersion, "bcVersion", errors, 20);
+        if (item.RunId < 0) errors.Add("runId cannot be negative.");
+        if (item.RunAttempt <= 0) errors.Add("runAttempt must be positive.");
+        if (item.CompletedAt == default) errors.Add("completedAt is required.");
+        if (item.Usable && !item.ArtifactAvailable) errors.Add("usable sources must have an available artifact.");
+        if (item.ArtifactName?.Length > 500 || item.PackageVersion?.Length > 100 || item.Warning?.Length > 2000)
+            errors.Add("artifact source text fields exceed their maximum length.");
+        return errors;
+    }
+    private static void Required(string? value, string name, ICollection<string> errors, int max)
+    {
+        if (string.IsNullOrWhiteSpace(value)) errors.Add($"{name} is required.");
+        else if (value.Length > max) errors.Add($"{name} cannot exceed {max} characters.");
+    }
+}

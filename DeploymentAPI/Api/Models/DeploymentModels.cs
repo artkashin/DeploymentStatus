@@ -45,7 +45,42 @@ public sealed class DeploymentEvent
     public DateTimeOffset CompletedAt { get; set; }
     public string DetailCompleteness { get; set; } = "full";
     public DeploymentSummary Summary { get; set; } = new();
+    public ArtifactSourceReference? ArtifactSource { get; set; }
     public List<DeploymentOperation> Operations { get; set; } = [];
+}
+
+public sealed class ArtifactSourceReference
+{
+    public required string Branch { get; set; }
+    public required string BcVersion { get; set; }
+    public long? RunId { get; set; }
+    public string? RunUrl { get; set; }
+    public string? ArtifactName { get; set; }
+    public string? PackageVersion { get; set; }
+    public bool Usable { get; set; }
+    public string? Conclusion { get; set; }
+    public string? Warning { get; set; }
+}
+
+public sealed class ArtifactSource
+{
+    public string SchemaVersion { get; set; } = "1.0";
+    public required string SourceId { get; set; }
+    public required string Repository { get; set; }
+    public required string Workflow { get; set; }
+    public required string Branch { get; set; }
+    public required string BcVersion { get; set; }
+    public long RunId { get; set; }
+    public int RunAttempt { get; set; } = 1;
+    public string? RunUrl { get; set; }
+    public string? CommitSha { get; set; }
+    public DateTimeOffset CompletedAt { get; set; }
+    public string? Conclusion { get; set; }
+    public string? ArtifactName { get; set; }
+    public string? PackageVersion { get; set; }
+    public bool ArtifactAvailable { get; set; }
+    public bool Usable { get; set; }
+    public string? Warning { get; set; }
 }
 
 public sealed class DeploymentSource
@@ -110,6 +145,8 @@ public sealed class CustomerLatestStatus
     public DeploymentMode Mode { get; init; }
     public DateTimeOffset CompletedAt { get; init; }
     public DeploymentSummary Summary { get; init; } = new();
+    public string? BcVersion { get; init; }
+    public string? PackageVersion { get; init; }
 }
 
 public sealed class CurrentDeploymentState

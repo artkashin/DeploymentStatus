@@ -116,7 +116,7 @@ resource auth 'Microsoft.Web/sites/config@2024-04-01' = {
     globalValidation: {
       requireAuthentication: true
       unauthenticatedClientAction: 'Return401'
-      excludedPaths: [ '/api/v1/deployment-events' ]
+      excludedPaths: [ '/api/v1/deployment-events', '/api/v1/artifact-sources' ]
     }
     httpSettings: { requireHttps: true }
     identityProviders: {

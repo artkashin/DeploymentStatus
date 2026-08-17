@@ -42,6 +42,27 @@ public sealed class DeploymentFunctionsTests
         Assert.Equal(StatusCodes.Status403Forbidden, result.StatusCode);
     }
 
+    [Fact]
+    public async Task Artifact_sources_are_adaptive_only_and_idempotent()
+    {
+        var store = new InMemoryDeploymentStore();
+        var source = new ArtifactSource
+        {
+            SourceId = "AdaptiveBS~AJEApps:32007490438:1:main:available", Repository = "AdaptiveBS/AJEApps",
+            Workflow = "CI/CD", Branch = "main", BcVersion = "25", RunId = 32007490438,
+            CompletedAt = DateTimeOffset.Parse("2026-08-17T09:41:00Z"), Conclusion = "failure",
+            ArtifactName = "AJEApps-main-Apps-1.0.1205.0", PackageVersion = "1.0.1205.0",
+            ArtifactAvailable = true, Usable = true, Warning = "Usable with warning: artifact is available."
+        };
+        Assert.True(await store.RegisterArtifactSourceAsync(source));
+        Assert.False(await store.RegisterArtifactSourceAsync(source));
+        var customer = Assert.IsType<ObjectResult>(await Functions(store).ArtifactSources(Request("DeploymentStatus.Customer.tappers"), CancellationToken.None));
+        Assert.Equal(StatusCodes.Status403Forbidden, customer.StatusCode);
+        var adaptive = Assert.IsType<OkObjectResult>(await Functions(store).ArtifactSources(Request("DeploymentStatus.Adaptive.All"), CancellationToken.None));
+        Assert.NotNull(adaptive.Value);
+        Assert.Equal("1.0.1205.0", (await store.GetArtifactSourcesAsync()).Single().PackageVersion);
+    }
+
     private static DeploymentFunctions Functions(IDeploymentStore store)
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>

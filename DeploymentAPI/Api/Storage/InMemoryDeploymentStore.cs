@@ -7,6 +7,7 @@ public sealed class InMemoryDeploymentStore : IDeploymentStore
 {
     private readonly ConcurrentDictionary<string, DeploymentEvent> _events = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, CurrentDeploymentState> _state = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, ArtifactSource> _artifactSources = new(StringComparer.OrdinalIgnoreCase);
 
     public Task<bool> RegisterAsync(DeploymentEvent item, CancellationToken cancellationToken = default)
     {
@@ -49,7 +50,8 @@ public sealed class InMemoryDeploymentStore : IDeploymentStore
             .GroupBy(item => item.Customer.Id, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.OrderByDescending(item => item.CompletedAt).First())
             .Select(item => new CustomerLatestStatus { CustomerId = item.Customer.Id, CustomerName = item.Customer.Name,
-                EventId = item.EventId, Status = item.Status, Mode = item.Mode, CompletedAt = item.CompletedAt, Summary = item.Summary })
+                EventId = item.EventId, Status = item.Status, Mode = item.Mode, CompletedAt = item.CompletedAt, Summary = item.Summary,
+                BcVersion = item.ArtifactSource?.BcVersion, PackageVersion = item.ArtifactSource?.PackageVersion })
             .OrderBy(item => item.CustomerName).Cast<CustomerLatestStatus>().ToList();
         return Task.FromResult<IReadOnlyList<CustomerLatestStatus>>(result);
     }
@@ -57,6 +59,14 @@ public sealed class InMemoryDeploymentStore : IDeploymentStore
     public Task<IReadOnlyList<CurrentDeploymentState>> GetCurrentStateAsync(string customerId, CancellationToken cancellationToken = default)
         => Task.FromResult<IReadOnlyList<CurrentDeploymentState>>(_state.Values.Where(item => item.CustomerId.Equals(customerId, StringComparison.OrdinalIgnoreCase))
             .OrderBy(item => item.TenantId).ThenBy(item => item.ApplicationName).ToList());
+
+    public Task<bool> RegisterArtifactSourceAsync(ArtifactSource item, CancellationToken cancellationToken = default)
+        => Task.FromResult(_artifactSources.TryAdd(item.SourceId, item));
+
+    public Task<IReadOnlyList<ArtifactSource>> GetArtifactSourcesAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<ArtifactSource>>(_artifactSources.Values.GroupBy(item => item.Branch, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.OrderByDescending(item => item.CompletedAt).ThenByDescending(item => item.SourceId).First())
+            .OrderBy(item => item.BcVersion).ToList());
 
     internal static IEnumerable<DeploymentEvent> Filter(IEnumerable<DeploymentEvent> items, DeploymentQuery query) => items
         .Where(item => query.CustomerIds is null || query.CustomerIds.Contains(item.Customer.Id))

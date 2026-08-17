@@ -25,6 +25,21 @@
         }
       }
     },
+    "/v1/artifact-sources": {
+      "post": {
+        "operationId": "registerArtifactSource",
+        "summary": "Register an AJEApps artifact source discovered by CIApp",
+        "security": [{ "functionKey": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ArtifactSourceInput" } } } },
+        "responses": { "201": { "description": "Source created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Acceptance" } } } }, "200": { "description": "Idempotent replay" }, "400": { "$ref": "#/components/responses/BadRequest" }, "401": { "$ref": "#/components/responses/Unauthorized" } }
+      },
+      "get": {
+        "operationId": "getArtifactSources",
+        "summary": "List latest AJEApps artifact sources (Adaptive only)",
+        "security": [{ "entraBearer": ["Deployment.Read"] }],
+        "responses": { "200": { "description": "Latest source per branch", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ArtifactSourceList" } } } }, "401": { "$ref": "#/components/responses/Unauthorized" }, "403": { "$ref": "#/components/responses/Forbidden" } }
+      }
+    },
     "/v1/me": {
       "get": {
         "operationId": "getCurrentUser",
@@ -247,6 +262,7 @@
           "completedAt": { "type": "string", "format": "date-time" },
           "detailCompleteness": { "type": "string", "enum": ["full", "summary"] },
           "summary": { "$ref": "#/components/schemas/Summary" },
+          "artifactSource": { "$ref": "#/components/schemas/ArtifactSourceReference" },
           "operations": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/components/schemas/OperationInput" } }
         }
       },
@@ -263,9 +279,22 @@
           "completedAt": { "type": "string", "format": "date-time" },
           "detailCompleteness": { "type": "string", "enum": ["full", "summary"] },
           "summary": { "$ref": "#/components/schemas/Summary" },
+          "artifactSource": { "oneOf": [{ "$ref": "#/components/schemas/ArtifactSourceReference" }, { "type": "null" }] },
           "operations": { "type": ["array", "null"], "items": { "$ref": "#/components/schemas/OperationDto" } }
         }
       },
+      "ArtifactSourceReference": {
+        "type": "object",
+        "required": ["branch", "bcVersion", "usable"],
+        "properties": { "branch": { "type": "string" }, "bcVersion": { "type": "string" }, "runId": { "type": ["integer", "null"] }, "runUrl": { "type": ["string", "null"] }, "artifactName": { "type": ["string", "null"] }, "packageVersion": { "type": ["string", "null"] }, "usable": { "type": "boolean" }, "conclusion": { "type": ["string", "null"] }, "warning": { "type": ["string", "null"] } }
+      },
+      "ArtifactSourceInput": {
+        "type": "object",
+        "required": ["schemaVersion", "sourceId", "repository", "workflow", "branch", "bcVersion", "runId", "runAttempt", "completedAt", "artifactAvailable", "usable"],
+        "properties": { "schemaVersion": { "const": "1.0" }, "sourceId": { "type": "string" }, "repository": { "type": "string" }, "workflow": { "type": "string" }, "branch": { "type": "string" }, "bcVersion": { "type": "string" }, "runId": { "type": "integer", "minimum": 0 }, "runAttempt": { "type": "integer", "minimum": 1 }, "runUrl": { "type": ["string", "null"] }, "commitSha": { "type": ["string", "null"] }, "completedAt": { "type": "string", "format": "date-time" }, "conclusion": { "type": ["string", "null"] }, "artifactName": { "type": ["string", "null"] }, "packageVersion": { "type": ["string", "null"] }, "artifactAvailable": { "type": "boolean" }, "usable": { "type": "boolean" }, "warning": { "type": ["string", "null"] } }
+      },
+      "ArtifactSourceDto": { "allOf": [{ "$ref": "#/components/schemas/ArtifactSourceInput" }] },
+      "ArtifactSourceList": { "type": "object", "required": ["items", "generatedAt"], "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/ArtifactSourceDto" } }, "generatedAt": { "type": "string", "format": "date-time" } } },
       "Me": {
         "type": "object",
         "required": ["name", "isAdaptive", "customerIds"],

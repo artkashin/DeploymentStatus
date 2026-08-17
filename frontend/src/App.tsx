@@ -6,7 +6,7 @@ import { ArrowClockwiseRegular, OpenRegular, SignOutRegular } from '@fluentui/re
 import { Link, Route, Routes, useParams } from 'react-router-dom'
 import { ApiClient, duration, formatDate } from './api'
 import { apiScope, authDisabled } from './auth'
-import type { CustomerLatest, Deployment, Operation, RunStatus } from './types'
+import type { ArtifactSource, CustomerLatest, Deployment, Operation, RunStatus } from './types'
 
 export function App() {
   const authenticated = useIsAuthenticated()
@@ -40,6 +40,7 @@ function Shell() {
 function AdaptiveDashboard({ api }: { api: ApiClient }) {
   const [filters, setFilters] = useState({ customerId: '', status: '', mode: '', workflow: '', branch: '', from: '', to: '' })
   const customers = useQuery({ queryKey: ['customers'], queryFn: api.customers })
+  const artifactSources = useQuery({ queryKey: ['artifact-sources'], queryFn: api.artifactSources })
   const search = useMemo(() => {
     const value = new URLSearchParams({ pageSize: '50' })
     Object.entries(filters).forEach(([key, item]) => { if (item) value.set(key, key === 'from' || key === 'to' ? new Date(item).toISOString() : item) })
@@ -50,17 +51,11 @@ function AdaptiveDashboard({ api }: { api: ApiClient }) {
   const latest = customers.data?.items ?? []
   const totals = latest.reduce((result, customer) => ({ ...result, [customer.status]: (result[customer.status] ?? 0) + 1 }), {} as Record<string, number>)
   return <main>
-    <section className="hero"><div><p className="eyebrow">Adaptive operations</p><h1>Deployment health</h1><p>Authoritative results reported directly by DeployCD.</p></div><Button icon={<ArrowClockwiseRegular />} onClick={() => { void customers.refetch(); void deployments.refetch() }}>Refresh</Button></section>
-    <section className="metrics" aria-label="Deployment summary">
-      <Metric label="Healthy" value={totals.success ?? 0} tone="success" />
-      <Metric label="Partial" value={totals.partial ?? 0} tone="warning" />
-      <Metric label="Failed" value={totals.failed ?? 0} tone="danger" />
-      <Metric label="Last refresh" value={customers.data ? <Time value={customers.data.generatedAt} /> : '—'} compact />
+    <section className="console-header"><div><p className="eyebrow">Adaptive operations</p><h1>Fleet status</h1><p>Verified DeployCD results against CIApp-selected AJEApps artifacts.</p></div><Button icon={<ArrowClockwiseRegular />} onClick={() => { void customers.refetch(); void deployments.refetch(); void artifactSources.refetch() }}>Refresh</Button></section>
+    <section className="baseline-strip" aria-label="AJEApps artifact baselines">
+      <strong>Artifact baselines</strong>{artifactSources.isLoading ? <Spinner size="tiny" /> : artifactSources.error ? <span>Sources unavailable</span> : (artifactSources.data?.items ?? []).map(item => <Baseline key={item.sourceId} item={item} />)}<span className="baseline-refresh">Updated {artifactSources.data ? <Time value={artifactSources.data.generatedAt} /> : '—'}</span>
     </section>
-    <section className="panel"><div className="section-title"><div><h2>Latest by customer</h2><p>Most recent execute or dry-run attempt.</p></div></div>
-      {customers.isLoading ? <Spinner label="Loading customers…" /> : latest.length === 0 ? <Empty text="No authoritative deployment events have been received yet." /> : <div className="customer-grid">{latest.map(customer => <CustomerCard key={customer.customerId} customer={customer} />)}</div>}
-    </section>
-    <section className="panel"><div className="section-title"><div><h2>Deployment activity</h2><p>Automatically refreshes every 30 seconds.</p></div></div>
+    <section className="fleet panel"><div className="section-title"><div><h2>Fleet status overview</h2><p>Latest deployment report for each authorized customer.</p></div><span>{latest.length} customers</span></div>
       <div className="filters">
         <Select aria-label="Customer" value={filters.customerId} onChange={(_, data) => setFilters({ ...filters, customerId: data.value })}><option value="">All customers</option>{latest.map(item => <option key={item.customerId} value={item.customerId}>{item.customerName}</option>)}</Select>
         <Select aria-label="Status" value={filters.status} onChange={(_, data) => setFilters({ ...filters, status: data.value })}><option value="">All statuses</option>{['success', 'partial', 'failed', 'cancelled', 'skipped'].map(value => <option key={value}>{value}</option>)}</Select>
@@ -70,6 +65,9 @@ function AdaptiveDashboard({ api }: { api: ApiClient }) {
         <Input aria-label="From date" type="datetime-local" value={filters.from} onChange={(_, data) => setFilters({ ...filters, from: data.value })} />
         <Input aria-label="To date" type="datetime-local" value={filters.to} onChange={(_, data) => setFilters({ ...filters, to: data.value })} />
       </div>
+      {customers.isLoading ? <Spinner label="Loading fleet…" /> : <FleetTable items={latest} sources={artifactSources.data?.items ?? []} />}
+    </section>
+    <section className="panel activity"><div className="section-title"><div><h2>Deployment activity</h2><p>Automatically refreshes every 30 seconds.</p></div><span>{totals.success ?? 0} healthy · {totals.failed ?? 0} failed</span></div>
       {deployments.isLoading ? <Spinner label="Loading activity…" /> : deployments.error ? <ErrorState error={deployments.error} /> : <DeploymentTable items={deployments.data?.items ?? []} />}
     </section>
   </main>
@@ -117,7 +115,8 @@ function DeploymentPage({ api, isAdaptive }: { api: ApiClient; isAdaptive: boole
   return <main><Link to="/" className="back-link">← Dashboard</Link><section className="hero compact"><div><p className="eyebrow">Deployment detail</p><h1>{item.customer.name}</h1><p>{item.mode === 'dryRun' ? 'Dry run' : 'Execute'} · {duration(item.startedAt, item.completedAt)} · <Time value={item.completedAt} /></p></div><Status status={item.status} /></section>
     {item.detailCompleteness === 'summary' && <section className="notice" role="status"><strong>Partial deployment data</strong><span>The runner did not produce a detailed report. This result was reconstructed from GitHub job conclusions.</span></section>}
     <section className="metrics"><Metric label="Operations" value={item.summary.total} /><Metric label="Succeeded" value={item.summary.succeeded} tone="success" /><Metric label="Failed" value={item.summary.failed} tone="danger" /><Metric label="Skipped / planned" value={item.summary.skipped + item.summary.planned} /></section>
-    {isAdaptive && <section className="panel metadata"><h2>Source</h2><dl><dt>Workflow</dt><dd>{item.source.workflow || '—'}</dd><dt>Branch</dt><dd>{item.source.branch || '—'}</dd><dt>Commit</dt><dd>{item.source.commitSha || '—'}</dd><dt>Run</dt><dd>{item.source.runUrl ? <a href={item.source.runUrl} target="_blank" rel="noreferrer">#{item.source.runId} <OpenRegular /></a> : `#${item.source.runId}`}</dd></dl></section>}
+    {item.artifactSource && <section className="panel metadata"><h2>AJEApps artifact</h2><dl><dt>Business Central</dt><dd>BC{item.artifactSource.bcVersion}</dd><dt>Package version</dt><dd>{item.artifactSource.packageVersion || 'Not reported'}</dd><dt>Availability</dt><dd>{item.artifactSource.usable ? 'Usable' : 'Unavailable'}{item.artifactSource.warning ? ` — ${item.artifactSource.warning}` : ''}</dd>{isAdaptive && <><dt>Artifact</dt><dd>{item.artifactSource.artifactName || '—'}</dd><dt>Run</dt><dd>{item.artifactSource.runUrl ? <a href={item.artifactSource.runUrl} target="_blank" rel="noreferrer">#{item.artifactSource.runId} <OpenRegular /></a> : `#${item.artifactSource.runId || '—'}`}</dd><dt>Conclusion</dt><dd>{item.artifactSource.conclusion || '—'}</dd></>}</dl></section>}
+    {isAdaptive && <section className="panel metadata"><h2>Deployment source</h2><dl><dt>Workflow</dt><dd>{item.source.workflow || '—'}</dd><dt>Branch</dt><dd>{item.source.branch || '—'}</dd><dt>Commit</dt><dd>{item.source.commitSha || '—'}</dd><dt>Run</dt><dd>{item.source.runUrl ? <a href={item.source.runUrl} target="_blank" rel="noreferrer">#{item.source.runId} <OpenRegular /></a> : `#${item.source.runId}`}</dd></dl></section>}
     <section className="panel"><h2>App and tenant results</h2>{Object.keys(grouped).length === 0 ? <Empty text="Detailed operation results are unavailable for this deployment." /> : Object.entries(grouped).map(([tenant, operations]) => <div className="tenant" key={tenant}><h3>{tenant}</h3><OperationTable operations={operations!} adaptive={isAdaptive} /></div>)}</section>
   </main>
 }
@@ -125,6 +124,8 @@ function DeploymentPage({ api, isAdaptive }: { api: ApiClient; isAdaptive: boole
 function Metric({ label, value, tone, compact }: { label: string; value: ReactNode; tone?: string; compact?: boolean }) { return <Card className={`metric ${tone || ''}`}><span>{label}</span><strong className={compact ? 'compact-value' : ''}>{value}</strong></Card> }
 function CustomerCard({ customer }: { customer: CustomerLatest }) { return <Link to={`/customers/${customer.customerId}`} className="card-link"><Card className="customer-card"><div><h3>{customer.customerName}</h3><span>{customer.mode === 'dryRun' ? 'Dry run' : 'Execute'} · <Time value={customer.completedAt} /></span></div><Status status={customer.status} /><div className="mini-summary"><span>{customer.summary.succeeded} succeeded</span><span>{customer.summary.failed} failed</span></div></Card></Link> }
 function Status({ status }: { status: RunStatus }) { const color = status === 'success' ? 'success' : status === 'failed' ? 'danger' : status === 'partial' ? 'warning' : 'informative'; return <Badge appearance="filled" color={color}>{status}</Badge> }
+function Baseline({ item }: { item: ArtifactSource }) { const label = item.usable ? item.warning ? 'Usable with warning' : 'Usable' : 'Unavailable'; return <div className="baseline"><span>BC{item.bcVersion} · {item.branch}</span><strong>{item.packageVersion || 'No package'}</strong><Badge appearance="filled" color={item.usable && !item.warning ? 'success' : item.usable ? 'warning' : 'danger'}>{label}</Badge>{item.runUrl && <a href={item.runUrl} target="_blank" rel="noreferrer">Run <OpenRegular /></a>}</div> }
+function FleetTable({ items, sources }: { items: CustomerLatest[]; sources: ArtifactSource[] }) { if (!items.length) return <Empty text="No authoritative deployment events have been received yet." />; return <div className="table-wrap fleet-table"><table><thead><tr><th>Customer</th><th>BC version</th><th>Reported package</th><th>Expected artifact</th><th>Latest attempt</th><th>Status</th></tr></thead><tbody>{items.map(item => { const expected = sources.find(source => source.bcVersion === item.bcVersion); const current = Boolean(item.packageVersion && expected?.packageVersion === item.packageVersion && item.status === 'success'); const statusText = current ? 'Current' : item.status === 'success' ? 'Package differs' : item.status === 'partial' ? 'Partial' : item.status === 'failed' ? 'Deployment failed' : item.status; return <tr key={item.customerId}><td><Link to={`/customers/${item.customerId}`}><strong>{item.customerName}</strong></Link></td><td>{item.bcVersion ? `BC${item.bcVersion}` : 'Not reported'}</td><td><span className="version-pill">{item.packageVersion || 'Not reported'}</span></td><td>{expected?.packageVersion || 'No usable source'}</td><td><Time value={item.completedAt} /></td><td><span className="status-text"><Status status={item.status} /> {statusText}</span></td></tr> })}</tbody></table></div> }
 function DeploymentTable({ items }: { items: Deployment[] }) { if (!items.length) return <Empty text="No deployments match these filters." />; return <div className="table-wrap"><table><thead><tr><th>Status</th><th>Customer</th><th>Mode</th><th>Completed</th><th>Result</th><th></th></tr></thead><tbody>{items.map(item => <tr key={item.eventId}><td><Status status={item.status} /></td><td>{item.customer.name}</td><td>{item.mode === 'dryRun' ? 'Dry run' : 'Execute'}</td><td><Time value={item.completedAt} /></td><td>{item.summary.succeeded} ok · {item.summary.failed} failed</td><td><Link to={`/deployments/${encodeURIComponent(item.eventId)}`}>Details →</Link></td></tr>)}</tbody></table></div> }
 function Time({ value }: { value: string }) { return <Tooltip content={new Date(value).toISOString()} relationship="label"><span>{formatDate(value)}</span></Tooltip> }
 function OperationTable({ operations, adaptive }: { operations: Operation[]; adaptive: boolean }) { return <div className="table-wrap"><table><thead><tr><th>Application</th><th>Action</th><th>Version</th><th>Outcome</th><th>Message</th></tr></thead><tbody>{operations.map((item, index) => <tr key={`${item.applicationId}-${item.action}-${index}`}><td><strong>{item.applicationName}</strong>{item.publisher && <small>{item.publisher}</small>}</td><td>{item.action}</td><td>{item.previousVersion ? `${item.previousVersion} → ${item.observedVersion || item.targetVersion || 'unknown'}` : item.observedVersion || item.targetVersion || '—'}</td><td>{item.outcome}</td><td>{item.message || '—'}{adaptive && item.internalError && <details><summary>Internal error</summary><pre>{item.internalError}</pre></details>}</td></tr>)}</tbody></table></div> }

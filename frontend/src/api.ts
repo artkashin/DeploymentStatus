@@ -1,6 +1,6 @@
 import type { AccountInfo, IPublicClientApplication } from '@azure/msal-browser'
 import { apiScope, authDisabled } from './auth'
-import type { CustomerDetail, CustomerLatest, Deployment, DeploymentPage, Me } from './types'
+import type { ArtifactSource, CustomerDetail, CustomerLatest, Deployment, DeploymentPage, Me } from './types'
 
 const baseUrl = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
 
@@ -37,6 +37,7 @@ export class ApiClient {
   customer = (customerId: string) => this.request<CustomerDetail>(`/v1/customers/${encodeURIComponent(customerId)}`)
   deployments = (search: URLSearchParams) => this.request<DeploymentPage>(`/v1/deployments?${search}`)
   deployment = (eventId: string) => this.request<Deployment>(`/v1/deployments/${encodeURIComponent(eventId)}`)
+  artifactSources = () => this.request<{ items: ArtifactSource[]; generatedAt: string }>('/v1/artifact-sources')
 }
 
 export function formatDate(value: string): string {

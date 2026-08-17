@@ -37,6 +37,22 @@ public sealed class DeploymentFunctions(IDeploymentStore store, CallerContextFac
         };
     }
 
+    [Function("RegisterArtifactSource")]
+    public async Task<IActionResult> RegisterArtifactSource(
+        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "v1/artifact-sources")] HttpRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArtifactSource? item;
+        try { item = await JsonSerializer.DeserializeAsync<ArtifactSource>(request.Body, JsonOptions, cancellationToken); }
+        catch (JsonException exception) { return new BadRequestObjectResult(new { error = "Invalid JSON.", detail = exception.Message }); }
+        var errors = ArtifactSourceValidation.Validate(item);
+        if (errors.Count > 0) return new BadRequestObjectResult(new { error = "Validation failed.", errors });
+        var created = await store.RegisterArtifactSourceAsync(item!, cancellationToken);
+        logger.LogInformation("Artifact source {SourceId} accepted; created={Created}", item!.SourceId, created);
+        return new ObjectResult(new { sourceId = item.SourceId, duplicate = !created, acceptedAt = DateTimeOffset.UtcNow })
+        { StatusCode = created ? StatusCodes.Status201Created : StatusCodes.Status200OK };
+    }
+
     [Function("GetCurrentUser")]
     public IActionResult Me([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/me")] HttpRequest request)
     {
@@ -112,6 +128,19 @@ public sealed class DeploymentFunctions(IDeploymentStore store, CallerContextFac
         if (item is null) return new NotFoundObjectResult(new { error = "Deployment event was not found." });
         if (!caller.CanAccess(item.Customer.Id)) return new ObjectResult(new { error = "Customer access is not allowed." }) { StatusCode = 403 };
         return new OkObjectResult(item.ToDto(caller.IsAdaptive, true));
+    }
+
+    [Function("GetArtifactSourcesV1")]
+    public async Task<IActionResult> ArtifactSources(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/artifact-sources")] HttpRequest request,
+        CancellationToken cancellationToken)
+    {
+        var caller = callerFactory.Create(request);
+        var denied = Authorize(caller);
+        if (denied is not null) return denied;
+        if (!caller.IsAdaptive) return new ObjectResult(new { error = "Adaptive access is required." }) { StatusCode = 403 };
+        var items = await store.GetArtifactSourcesAsync(cancellationToken);
+        return new OkObjectResult(new { items = items.Select(item => item.ToDto()).ToList(), generatedAt = DateTimeOffset.UtcNow });
     }
 
     [Function("DeploymentStatusHealth")]

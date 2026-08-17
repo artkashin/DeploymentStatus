@@ -9,17 +9,16 @@ param(
 $ErrorActionPreference = 'Stop'
 if (-not (Get-Command az -ErrorAction SilentlyContinue)) { throw 'Azure CLI is required.' }
 
-az functionapp function keys set `
+az functionapp keys set `
     --resource-group $ResourceGroup `
     --name $FunctionAppName `
-    --function-name RegisterDeploymentEvent `
     --key-name $KeyName `
+    --key-type functionKeys `
     --output none
-$keys = az functionapp function keys list `
+$keys = az functionapp keys list `
     --resource-group $ResourceGroup `
-    --name $FunctionAppName `
-    --function-name RegisterDeploymentEvent | ConvertFrom-Json
-$key = $keys.PSObject.Properties[$KeyName].Value
+    --name $FunctionAppName | ConvertFrom-Json
+$key = $keys.functionKeys.PSObject.Properties[$KeyName].Value
 if (-not $key) { throw 'Azure did not return the function key.' }
 
 if ($DeployCdRepository) {

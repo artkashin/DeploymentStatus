@@ -16,6 +16,9 @@ public sealed class TableDeploymentStore(TableServiceClient serviceClient) : IDe
     private readonly TableClient _state = serviceClient.GetTableClient("CustomerCurrentState");
     private readonly TableClient _latest = serviceClient.GetTableClient("CustomerLatest");
     private readonly TableClient _index = serviceClient.GetTableClient("DeploymentEventIndex");
+    private readonly TableClient _artifactSources = serviceClient.GetTableClient("ArtifactSources");
+    private readonly TableClient _artifactSourceIndex = serviceClient.GetTableClient("ArtifactSourceIndex");
+    private readonly TableClient _artifactSourceLatest = serviceClient.GetTableClient("ArtifactSourceLatest");
     private readonly SemaphoreSlim _initializeLock = new(1, 1);
     private volatile bool _initialized;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
@@ -137,7 +140,8 @@ public sealed class TableDeploymentStore(TableServiceClient serviceClient) : IDe
             var item = DeserializeEvent(entity.GetString("EventJson"));
             if (item is null || (customerIds is not null && !customerIds.Contains(item.Customer.Id))) continue;
             result.Add(new CustomerLatestStatus { CustomerId = item.Customer.Id, CustomerName = item.Customer.Name,
-                EventId = item.EventId, Status = item.Status, Mode = item.Mode, CompletedAt = item.CompletedAt, Summary = item.Summary });
+                EventId = item.EventId, Status = item.Status, Mode = item.Mode, CompletedAt = item.CompletedAt, Summary = item.Summary,
+                BcVersion = item.ArtifactSource?.BcVersion, PackageVersion = item.ArtifactSource?.PackageVersion });
         }
         return result.OrderBy(item => item.CustomerName).ToList();
     }
@@ -153,6 +157,38 @@ public sealed class TableDeploymentStore(TableServiceClient serviceClient) : IDe
             if (item is not null) result.Add(item);
         }
         return result.OrderBy(item => item.TenantId).ThenBy(item => item.ApplicationName).ToList();
+    }
+
+    public async Task<bool> RegisterArtifactSourceAsync(ArtifactSource item, CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        var hash = Hash(item.SourceId);
+        var row = $"{DateTimeOffset.MaxValue.UtcTicks - item.CompletedAt.UtcTicks:D19}-{hash}";
+        try
+        {
+            await _artifactSourceIndex.AddEntityAsync(new TableEntity("source", hash) { ["SourceId"] = item.SourceId, ["Branch"] = item.Branch, ["Row"] = row }, cancellationToken);
+        }
+        catch (RequestFailedException exception) when (exception.Status == 409) { return false; }
+        var json = JsonSerializer.Serialize(item, JsonOptions);
+        await _artifactSources.UpsertEntityAsync(new TableEntity(item.Branch.ToLowerInvariant(), row)
+        { ["SourceId"] = item.SourceId, ["CompletedAt"] = item.CompletedAt, ["SourceJson"] = json }, TableUpdateMode.Replace, cancellationToken);
+        var existing = await _artifactSourceLatest.GetEntityIfExistsAsync<TableEntity>("latest", item.Branch.ToLowerInvariant(), cancellationToken: cancellationToken);
+        if (!existing.HasValue || existing.Value!.GetDateTimeOffset("CompletedAt") <= item.CompletedAt)
+            await _artifactSourceLatest.UpsertEntityAsync(new TableEntity("latest", item.Branch.ToLowerInvariant())
+            { ["CompletedAt"] = item.CompletedAt, ["SourceJson"] = json }, TableUpdateMode.Replace, cancellationToken);
+        return true;
+    }
+
+    public async Task<IReadOnlyList<ArtifactSource>> GetArtifactSourcesAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+        var result = new List<ArtifactSource>();
+        await foreach (var entity in _artifactSourceLatest.QueryAsync<TableEntity>(cancellationToken: cancellationToken))
+        {
+            var item = JsonSerializer.Deserialize<ArtifactSource>(entity.GetString("SourceJson") ?? "", JsonOptions);
+            if (item is not null) result.Add(item);
+        }
+        return result.OrderBy(item => item.BcVersion).ThenBy(item => item.Branch).ToList();
     }
 
     private async Task UpdateLatestAsync(DeploymentEvent item, string json, CancellationToken cancellationToken)
@@ -195,7 +231,7 @@ public sealed class TableDeploymentStore(TableServiceClient serviceClient) : IDe
         try
         {
             if (_initialized) return;
-            foreach (var table in new[] { _runs, _operations, _feed, _state, _latest, _index })
+            foreach (var table in new[] { _runs, _operations, _feed, _state, _latest, _index, _artifactSources, _artifactSourceIndex, _artifactSourceLatest })
                 await table.CreateIfNotExistsAsync(cancellationToken);
             _initialized = true;
         }
