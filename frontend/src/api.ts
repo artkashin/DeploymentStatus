@@ -16,11 +16,14 @@ export class ApiClient {
       if (!this.account) throw new Error('No signed-in account is available.')
       let result
       try { result = await this.msal.acquireTokenSilent({ account: this.account, scopes: [apiScope] }) }
-      catch { throw new Error('Your session expired. Sign in again.') }
+      catch (error) {
+        const detail = error instanceof Error ? error.message : 'The browser could not restore an access token.'
+        throw new Error(`Your session expired. Sign in again. (${detail})`)
+      }
       headers.set('Authorization', `Bearer ${result.accessToken}`)
     }
     const response = await fetch(`${baseUrl}${path}`, { headers })
-    if (response.status === 401) throw new Error('Your session expired. Sign in again.')
+    if (response.status === 401) throw new Error('The API rejected the signed-in session. Sign in again.')
     if (response.status === 403) throw new Error('Your account is not authorized for this deployment data.')
     if (!response.ok) throw new Error((await response.json().catch(() => null))?.error || `API request failed (${response.status}).`)
     return response.json() as Promise<T>
