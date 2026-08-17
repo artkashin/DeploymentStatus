@@ -123,6 +123,8 @@ public sealed class DeploymentCustomer
 {
     public required string Id { get; set; }
     public required string Name { get; set; }
+    public string? CustomerType { get; set; }
+    public List<string> TypeApps { get; set; } = [];
 }
 
 public sealed class DeploymentSummary
@@ -167,6 +169,8 @@ public sealed class CustomerLatestStatus
     public DeploymentSummary Summary { get; init; } = new();
     public string? BcVersion { get; init; }
     public string? PackageVersion { get; init; }
+    public string? CustomerType { get; init; }
+    public List<string> TypeApps { get; init; } = [];
     public int DesiredAppCount { get; init; }
     public int CurrentAppCount { get; init; }
     public int AttentionAppCount { get; init; }

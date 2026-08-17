@@ -35,7 +35,7 @@ public sealed class InMemoryDeploymentStore : IDeploymentStore
             .Select(group => group.OrderByDescending(item => item.CompletedAt).First())
             .Select(item => WithHealth(new CustomerLatestStatus { CustomerId = item.Customer.Id, CustomerName = item.Customer.Name,
                 EventId = item.EventId, Status = item.Status, Mode = item.Mode, CompletedAt = item.CompletedAt, Summary = item.Summary,
-                BcVersion = item.ArtifactSource?.BcVersion, PackageVersion = item.ArtifactSource?.PackageVersion }, item.Customer.Id))
+                BcVersion = item.ArtifactSource?.BcVersion, PackageVersion = item.ArtifactSource?.PackageVersion, CustomerType = item.Customer.CustomerType, TypeApps = item.Customer.TypeApps }, item.Customer.Id))
             .OrderBy(item => item.CustomerName).Cast<CustomerLatestStatus>().ToList();
         return Task.FromResult<IReadOnlyList<CustomerLatestStatus>>(result);
     }
@@ -108,7 +108,7 @@ public sealed class InMemoryDeploymentStore : IDeploymentStore
         // desired-app inventory or an installation date from those historic operations.
         if (tenants.Count == 0 && _events.TryGetValue(item.EventId, out var latestEvent))
             tenants = TenantHealthFromOperations(latestEvent.Operations).OrderBy(tenant => tenant.TenantLabel ?? tenant.TenantId).ToList();
-        return new CustomerLatestStatus { CustomerId = item.CustomerId, CustomerName = item.CustomerName, EventId = item.EventId, Status = item.Status, Mode = item.Mode, CompletedAt = item.CompletedAt, Summary = item.Summary, BcVersion = item.BcVersion, PackageVersion = item.PackageVersion, DesiredAppCount = states.Count, CurrentAppCount = current, AttentionAppCount = attention, FailedAppCount = failed, Health = failed > 0 ? "failed" : attention > 0 ? "attention" : states.Count > 0 ? "current" : "unknown", Tenants = tenants };
+        return new CustomerLatestStatus { CustomerId = item.CustomerId, CustomerName = item.CustomerName, EventId = item.EventId, Status = item.Status, Mode = item.Mode, CompletedAt = item.CompletedAt, Summary = item.Summary, BcVersion = item.BcVersion, PackageVersion = item.PackageVersion, CustomerType = item.CustomerType, TypeApps = item.TypeApps, DesiredAppCount = states.Count, CurrentAppCount = current, AttentionAppCount = attention, FailedAppCount = failed, Health = failed > 0 ? "failed" : attention > 0 ? "attention" : states.Count > 0 ? "current" : "unknown", Tenants = tenants };
     }
 
     internal static TenantLatestStatus TenantHealth(IEnumerable<CustomerDesiredAppState> states)
