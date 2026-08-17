@@ -35,8 +35,15 @@ jobs:
       - name: Verify deployed Functions
         shell: bash
         run: |
-          test "$(az functionapp show --resource-group '${{ vars.AZURE_RESOURCE_GROUP }}' --name '${{ vars.AZURE_FUNCTIONAPP_NAME }}' --query state --output tsv)" = 'Running'
-          az functionapp function show --resource-group '${{ vars.AZURE_RESOURCE_GROUP }}' --name '${{ vars.AZURE_FUNCTIONAPP_NAME }}' --function-name RegisterDeploymentEvent --output none
+          for attempt in {1..12}; do
+            state="$(az resource show --resource-group '${{ vars.AZURE_RESOURCE_GROUP }}' --resource-type Microsoft.Web/sites --name '${{ vars.AZURE_FUNCTIONAPP_NAME }}' --api-version 2024-04-01 --query properties.state --output tsv)"
+            if [ "$state" = 'Running' ] && az functionapp function list --resource-group '${{ vars.AZURE_RESOURCE_GROUP }}' --name '${{ vars.AZURE_FUNCTIONAPP_NAME }}' --query '[].name' --output tsv | grep -qx '${{ vars.AZURE_FUNCTIONAPP_NAME }}/RegisterDeploymentEvent'; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo 'Function App did not become ready with RegisterDeploymentEvent registered.' >&2
+          exit 1
 
   dashboard:
     needs: verify
