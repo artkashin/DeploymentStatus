@@ -403,6 +403,7 @@ FodyWeavers.xsd
 # Azure Functions local settings
 local.settings.json
 local.settings.*.json
+!DeploymentAPI/local.settings.template.json
 
 # GitHub App secrets
 secrets/
@@ -438,7 +439,9 @@ obj/
 
 # Dependency directories
 node_modules/
+node_modules.interrupted-*/
 jspm_packages/
+*.tsbuildinfo
 
 # Optional npm cache directory
 .npm
@@ -470,6 +473,8 @@ dist
 # Gatsby files
 .cache/
 public
+!frontend/public/
+!frontend/public/staticwebapp.config.json
 
 # vuepress build output
 .vuepress/dist
@@ -506,6 +511,8 @@ __tablestorage__/
 
 # Test results
 TestResults/
+test-results/
+playwright-report/
 
 # Temporary files
 *.tmp

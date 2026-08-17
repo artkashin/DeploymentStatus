@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  workflow_call:
+  pull_request:
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '10.0.x' }
+      - name: Start Azurite
+        shell: bash
+        run: |
+          npm install --global azurite
+          azurite --silent --location /tmp/azurite > /tmp/azurite.log 2>&1 &
+          for attempt in {1..30}; do
+            curl --silent --output /dev/null http://127.0.0.1:10002/devstoreaccount1 && exit 0
+            sleep 1
+          done
+          cat /tmp/azurite.log
+          exit 1
+      - run: dotnet test DeploymentStatus.slnx --configuration Release
+        env:
+          AZURITE_CONNECTION_STRING: UseDevelopmentStorage=true
+      - run: npx --yes @redocly/cli lint DeploymentAPI/openapi.json
+      - name: Validate Bicep
+        run: az bicep build --file infra/main.bicep --stdout > /dev/null
+      - name: Validate infrastructure scripts and access mapping
+        shell: pwsh
+        run: |
+          $errors = @()
+          foreach ($path in @('infra/Setup-Entra.ps1','infra/Set-DeploymentReporterKey.ps1')) {
+            [void][System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$null, [ref]$errors)
+          }
+          if ($errors.Count) { $errors | Format-List | Out-String | Write-Error }
+          Get-Content -LiteralPath infra/customer-access.json -Raw | ConvertFrom-Json | Out-Null
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: frontend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e

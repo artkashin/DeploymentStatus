@@ -1,246 +1,73 @@
-# Deployment Status API
+# DeploymentStatus
 
-Business Central deployment tracking system with CI/CD version management and web dashboard.
+DeploymentStatus is the authoritative, event-driven view of DeployCD deployments. DeployCD writes a versioned JSON report, a GitHub-hosted job submits it to the Function API, and authenticated Adaptive or customer users read authorization-scoped projections in the React dashboard.
+
+```mermaid
+flowchart LR
+  DeployCD --> Report[JSON report artifact]
+  Report --> Ingest[Function-key ingestion API]
+  Reconciler[15-minute reconciler] --> Ingest
+  Ingest --> Tables[Azure Table Storage projections]
+  Dashboard[React + Fluent UI] --> Read[Entra-protected read API]
+  Read --> Tables
+```
+
+The former static dashboard, sample initialization endpoints, and GitHub polling services have been removed. Existing legacy Azure tables are intentionally untouched and are not read by this application.
 
 ## Components
 
-### 1. DeploymentAPI (Azure Functions)
-REST API for tracking deployments and CI/CD versions.
+- `DeploymentAPI`: .NET 10 isolated Azure Functions API.
+- `frontend`: Vite, React, TypeScript, Fluent UI, MSAL, TanStack Query, Vitest, and Playwright.
+- `infra`: production Bicep and repeatable Entra application/group-role setup.
+- `DeploymentAPI.Tests`: unit and Azurite-backed projection tests.
 
-### 2. DeploymentDashboard (Azure Static Web App)
-Web dashboard for visualizing deployment status and history.
+## Local development
 
-## Quick Start
+Requirements: .NET 10 SDK, Azure Functions Core Tools, Node.js 24, and Azurite.
 
-### Start Full Stack (API + Dashboard)
-```powershell
-.\start-full-stack.ps1
-```
+1. Copy `DeploymentAPI/local.settings.template.json` to `DeploymentAPI/local.settings.json`.
+2. Start Azurite.
+3. In `DeploymentAPI`, run `func start`.
+4. In `frontend`, copy `.env.example` to `.env.local`, set `VITE_AUTH_DISABLED=true`, then run `npm ci` and `npm run dev`.
 
-This starts:
-- Azure Functions API on http://localhost:7071
-- Dashboard on http://localhost:8080
+Development authentication headers are accepted only when `Authorization__AllowDevelopmentHeaders=true`. Production Bicep explicitly disables them.
 
-### Start Components Separately
-
-**API Only:**
-```powershell
-.\rebuild-and-start.ps1
-```
-
-**Dashboard Only:**
-```powershell
-.\start-dashboard.ps1
-```
-
-### Run Tests
-```powershell
-# Terminal 1: Start API
-.\rebuild-and-start.ps1
-
-# Terminal 2: Run tests
-.\test-api.ps1
-```
-
----
-
-## Dashboard Features
-
-- **Real-time Status** - View all client deployments at a glance
-- **CI/CD Management** - Update and track CI/CD versions
-- **Deployment History** - View detailed deployment logs
-- **Version Comparison** - Identify outdated clients
-- **Interactive UI** - Click clients to view their history
-
----
-
-## Available Scripts
-
-| Script | Purpose |
-|--------|---------|
-| `START.ps1` | Interactive menu with all options |
-| `rebuild-and-start.ps1` | Clean build and start API |
-| `run-api.ps1` | Build project (helper) |
-| `diagnose.ps1` | Check environment and configuration |
-| `start-functions.ps1` | Start Azure Functions only |
-| `test-api.ps1` | Test all API endpoints |
-| `test-version-logic.ps1` | Test version update logic |
-| `test-storage-persistence.ps1` | Test data persistence |
-| `start-azurite.ps1` | Start Azurite storage emulator |
-| `start-with-tablestorage.ps1` | Start with Table Storage |
-
----
-
-## Storage Options
-
-### In-Memory (Default)
-- Fast and simple
-- Data lost on restart
-- Perfect for development
-
-```json
-{
-  "StorageType": "InMemory"
-}
-```
-
-### Azure Table Storage
-- Persistent storage
-- Data survives restart
-- Use Azurite locally
-
-```json
-{
-  "StorageType": "TableStorage",
-  "AzureWebJobsStorage": "UseDevelopmentStorage=true"
-}
-```
-
----
-
-## API Endpoints
-
-### CI/CD Version Management
-- `POST /api/cicd/version` - Set CI/CD version
-- `GET /api/cicd/version` - Get current CI/CD version
-
-### Deployment Tracking
-- `POST /api/deployments` - Register deployment
-- `GET /api/clients/{clientId}/status` - Get client status
-- `GET /api/clients/status` - Get all clients status
-- `GET /api/clients/{clientId}/history` - Get deployment history
-
----
-
-## Architecture
-
-### Two-Table Design
-
-**Deployments (Current State):**
-- PartitionKey = ClientId
-- RowKey = ApplicationId
-- Stores current version only
-
-**DeploymentHistory (Full History):**
-- PartitionKey = ClientId
-- RowKey = ReversedTimestamp
-- Stores all deployments chronologically
-
-### Version Logic
-
-```
-Register v1.0.0 (first time):
-?? Deployments: INSERT
-?? DeploymentHistory: INSERT
-
-Register v1.0.0 (same version):
-?? Deployments: SKIP (not updated)
-?? DeploymentHistory: INSERT (always added)
-
-Register v1.1.0 (new version):
-?? Deployments: UPDATE
-?? DeploymentHistory: INSERT
-```
-
----
-
-## Prerequisites
-
-1. **.NET 8 SDK**
-   ```powershell
-   dotnet --version  # Should be 8.0.x
-   ```
-
-2. **Azure Functions Core Tools v4**
-   ```powershell
-   npm install -g azure-functions-core-tools@4 --unsafe-perm true
-   ```
-
-3. **Azurite (optional, for Table Storage)**
-   ```powershell
-   npm install -g azurite
-   ```
-
----
-
-## Example Usage
+## Verification
 
 ```powershell
-$baseUrl = "http://localhost:7071/api"
-
-# Set CI/CD version
-$cicd = @{ 
-    version = "1.3.0"
-    updatedBy = "Admin" 
-} | ConvertTo-Json
-Invoke-RestMethod -Uri "$baseUrl/cicd/version" -Method Post -Body $cicd -ContentType "application/json"
-
-# Register deployment
-$dep = @{
-    clientId = "client-001"
-    clientName = "Test Company"
-    applicationId = "app-hr"
-    applicationName = "HR Module"
-    version = "1.3.0"
-    status = 0
-} | ConvertTo-Json
-Invoke-RestMethod -Uri "$baseUrl/deployments" -Method Post -Body $dep -ContentType "application/json"
-
-# Get client status
-Invoke-RestMethod -Uri "$baseUrl/clients/client-001/status"
+dotnet test .\DeploymentStatus.slnx --configuration Release
+Set-Location .\frontend
+npm ci
+npm run lint
+npm test
+npm run typecheck
+npm run build
+npm run test:e2e
 ```
 
----
+Set `AZURITE_CONNECTION_STRING=UseDevelopmentStorage=true` while running `dotnet test` to enable the storage projection integration test.
 
-## Documentation
+## Production setup
 
-### Local Development
-- **QUICK-START.md** - Quick reference guide
-- **CHEATSHEET.md** - Command cheat sheet
-- **ARCHITECTURE-STORAGE.md** - Storage architecture details
-- **STORAGE-SETUP.md** - Azure Storage setup guide
-- **AZURE-STORAGE-INTEGRATION.md** - Table Storage integration
+1. Populate `infra/customer-access.json`, then run `infra/Setup-Entra.ps1` once without a Static Web App URL to create the API and SPA registrations. Record the emitted client IDs.
+2. Deploy `infra/main.bicep` with the production resource group, Entra tenant ID, and API client ID.
+3. Run `infra/Setup-Entra.ps1` again with `-StaticWebAppUrl` set to the Bicep output so the production PKCE redirect and group role assignments are idempotently applied.
+4. Run `infra/Set-DeploymentReporterKey.ps1` to create the function-specific ingestion key and optionally write it to the DeployCD repository secret.
+5. Configure DeploymentStatus repository environments/variables used by `deploy-production.yml`, including `AZURE_RESOURCE_GROUP`.
+6. Configure DeployCD repository variable `DEPLOYMENT_STATUS_API_URL` and secret `DEPLOYMENT_STATUS_API_KEY`.
+7. Deploy, verify the Function App and dashboard, and dispatch the `retaildemo` dry run as the first report.
 
-### Dashboard
-- **DASHBOARD-PRODUCTION-CONFIG.md** - Production API configuration for dashboard
-- **DeploymentDashboard/README.md** - Dashboard setup and deployment
+Read endpoints require a delegated `api://<api-client-id>/Deployment.Read` token and one or more app roles. `DeploymentStatus.Adaptive.All` can read all data and internal diagnostics; `DeploymentStatus.Customer.<customerId>` is customer-safe and supports role unions. The ingestion endpoint alone is excluded from Easy Auth and remains protected by its dedicated Functions key.
 
-### Azure Deployment
-- **AZURE-QUICK-START.md** - **START HERE:** 5-step deployment guide
-- **AZURE-DEPLOYMENT.md** - Complete guide to deploying to Azure Functions
-- **AZURE-CONFIGURATION.md** - Production configuration templates and secrets management
-- **AZURE-ENV-VAR-FORMAT.md** - **IMPORTANT:** Environment variable naming (use `__` not `:`)
-- **AZURE-FLEX-PLAN-SETUP.md** - **Flex Consumption Plan:** Omit FUNCTIONS_WORKER_RUNTIME
-- **DeploymentAPI/WORKFLOW-CUSTOMER-STATUS-API.md** - Workflow customer status API documentation
+## API
 
----
+The versioned contract is in `DeploymentAPI/openapi.json`:
 
-## Troubleshooting
+- `POST /api/v1/deployment-events`
+- `GET /api/v1/me`
+- `GET /api/v1/customers`
+- `GET /api/v1/customers/{customerId}`
+- `GET /api/v1/deployments`
+- `GET /api/v1/deployments/{eventId}`
 
-### API not starting
-```powershell
-.\diagnose.ps1
-```
-
-### Clean rebuild
-```powershell
-cd DeploymentAPI
-dotnet clean
-dotnet build
-cd ..
-```
-
-### View Azurite data
-1. Install **Azure Storage Explorer**
-2. Connect to `(Emulator - Default Ports)`
-3. Browse Tables ? Deployments / DeploymentHistory
-
----
-
-## Summary
-
-**To start:** Run `.\START.ps1` or `.\rebuild-and-start.ps1`  
-**To test:** Run `.\test-api.ps1` (in separate terminal)  
-**For help:** Check QUICK-START.md or CHEATSHEET.md  
-
-Built with .NET 8 + Azure Functions + Table Storage
+A deterministic event ID has the form `repositoryKey:runId:runAttempt:customerId:mode`, where non-URL-safe repository separators such as `/` become `~`. Replays return HTTP 200 with `duplicate: true`; new events return HTTP 201.

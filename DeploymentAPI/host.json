@@ -1,28 +1,11 @@
 {
-    "version": "2.0",
-    "logging": {
-        "applicationInsights": {
-            "samplingSettings": {
-                "isEnabled": true,
-                "excludedTypes": "Request"
-            },
-            "enableLiveMetricsFilters": true
-        },
-        "logLevel": {
-            "default": "Information",
-            "DeploymentAPI": "Trace",
-            "DeploymentAPI.Services": "Trace"
-        }
+  "version": "2.0",
+  "logging": {
+    "applicationInsights": {
+      "samplingSettings": { "isEnabled": true, "excludedTypes": "Request" },
+      "enableLiveMetricsFilters": true
     },
-    "extensions": {
-        "http": {
-            "routePrefix": "api"
-        }
-    },
-    "cors": {
-        "allowCredentials": false,
-        "allowedOrigins": [
-            "*"
-        ]
-    }
+    "logLevel": { "default": "Information", "DeploymentStatus": "Information" }
+  },
+  "extensions": { "http": { "routePrefix": "api" } }
 }

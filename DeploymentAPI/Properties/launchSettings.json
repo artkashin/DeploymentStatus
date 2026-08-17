@@ -2,7 +2,7 @@
   "profiles": {
     "DeploymentAPI": {
       "commandName": "Project",
-      "commandLineArgs": "--port 7150",
+      "commandLineArgs": "--port 7071",
       "launchBrowser": false
     }
   }

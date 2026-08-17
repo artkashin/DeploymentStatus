@@ -1,263 +1,332 @@
 {
-  "openapi": "3.0.1",
+  "openapi": "3.1.0",
   "info": {
-    "title": "Deployment Status API",
-    "description": "API for managing deployment status, CI/CD versions, and GitHub workflow integration",
-    "version": "v1",
-    "contact": {
-      "name": "Deployment Status Team",
-      "email": "support@example.com"
-    }
+    "title": "DeploymentStatus API",
+    "version": "1.0.0",
+    "description": "Authoritative DeployCD event ingestion and role-scoped deployment reads.",
+    "license": { "name": "Proprietary", "identifier": "LicenseRef-Proprietary" }
   },
-  "servers": [
-    {
-      "url": "https://func-deployment-status-api-g0egd2dbc9d9c2d9.eastus2-01.azurewebsites.net/api",
-      "description": "Production"    },
-    {
-      "url": "http://localhost:7071/api",
-      "description": "Local Development"
-    }
-  ],
+  "servers": [{ "url": "https://{functionAppName}.azurewebsites.net/api", "variables": { "functionAppName": { "default": "func-deployment-status-api" } } }],
   "paths": {
-    "/clients/status": {
-      "get": {
-        "tags": ["Clients"],
-        "summary": "Get status of all clients",
-        "description": "Retrieves the deployment status for all registered clients",
-        "operationId": "GetAllClientsStatus",
-        "security": [{ "function_key": [] }],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "totalClients": { "type": "integer" },
-                    "deployedClients": { "type": "integer" },
-                    "clients": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "clientId": { "type": "string" },
-                          "clientName": { "type": "string" },
-                          "currentVersion": { "type": "string" },
-                          "lastDeploymentDate": { "type": "string", "format": "date-time" }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": { "description": "Internal Server Error" }
-        }
-      }
-    },
-    "/clients/{clientId}/status": {
-      "get": {
-        "tags": ["Clients"],
-        "summary": "Get client status",
-        "description": "Retrieves deployment status for a specific client",
-        "operationId": "GetClientStatus",
-        "security": [{ "function_key": [] }],
-        "parameters": [
-          {
-            "name": "clientId",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string" }
-          }
-        ],
-        "responses": {
-          "200": { "description": "Success" },
-          "404": { "description": "Client not found" },
-          "500": { "description": "Internal Server Error" }
-        }
-      }
-    },
-    "/applications": {
-      "get": {
-        "tags": ["Applications"],
-        "summary": "Get all applications",
-        "description": "Retrieves all registered applications",
-        "operationId": "GetApplications",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "applicationId": { "type": "string" },
-                      "applicationName": { "type": "string" }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/customers": {
-      "get": {
-        "tags": ["Customers"],
-        "summary": "Get all customers",
-        "description": "Retrieves all registered customers",
-        "operationId": "GetCustomers",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "customerId": { "type": "string" },
-                      "customerName": { "type": "string" }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/update-all-customers/latest": {
-      "get": {
-        "tags": ["Workflows"],
-        "summary": "Get latest workflow status",
-        "description": "Retrieves the latest 'Update all customers' workflow run status with customer installation details",
-        "operationId": "GetLatestUpdateCustomersStatus",
-        "security": [{ "function_key": [] }],
-        "responses": {
-          "200": { "description": "Success" },
-          "500": { "description": "Internal Server Error" }
-        }
-      }
-    },
-    "/workflow-runs/{runId}/customer-status": {
-      "get": {
-        "tags": ["Workflows"],
-        "summary": "Get workflow customer status",
-        "description": "Retrieves customer installation status for a specific workflow run",
-        "operationId": "GetWorkflowRunCustomerStatus",
-        "security": [{ "function_key": [] }],
-        "parameters": [
-          {
-            "name": "runId",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string" }
-          }
-        ],
-        "responses": {
-          "200": { "description": "Success" },
-          "404": { "description": "Workflow run not found" },
-          "500": { "description": "Internal Server Error" }
-        }
-      }
-    },
-    "/deployments": {
+    "/v1/deployment-events": {
       "post": {
-        "tags": ["Deployments"],
-        "summary": "Register deployment",
-        "description": "Registers a new deployment for a client",
-        "operationId": "RegisterDeployment",
-        "security": [{ "function_key": [] }],
+        "operationId": "registerDeploymentEvent",
+        "summary": "Register a deployment event",
+        "security": [{ "functionKey": [] }],
         "requestBody": {
           "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "clientId": { "type": "string" },
-                  "version": { "type": "string" },
-                  "deployedBy": { "type": "string" },
-                  "notes": { "type": "string" }
-                }
-              }
-            }
-          }
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeploymentEventInput" } } }
         },
         "responses": {
-          "200": { "description": "Success" },
-          "400": { "description": "Bad Request" },
-          "500": { "description": "Internal Server Error" }
+          "201": { "description": "Event created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Acceptance" } } } },
+          "200": { "description": "Idempotent replay", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Acceptance" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
         }
       }
     },
-    "/admin/initialize": {
-      "post": {
-        "tags": ["Admin"],
-        "summary": "Initialize database",
-        "description": "Initialize database with sample data",
-        "operationId": "InitializeDatabase",
-        "security": [{ "function_key": [] }],
-        "responses": {
-          "200": { "description": "Success" },
-          "500": { "description": "Internal Server Error" }
-        }
-      }
-    },
-    "/admin/initialize/status": {
+    "/v1/me": {
       "get": {
-        "tags": ["Admin"],
-        "summary": "Get initialization status",
-        "description": "Check if database has been initialized",
-        "operationId": "GetInitializationStatus",
-        "security": [{ "function_key": [] }],
+        "operationId": "getCurrentUser",
+        "summary": "Get the caller identity and access scope",
+        "security": [{ "entraBearer": ["Deployment.Read"] }],
         "responses": {
-          "200": { "description": "Success" }
+          "200": { "description": "Current access scope", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Me" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/v1/customers": {
+      "get": {
+        "operationId": "getCustomers",
+        "summary": "List authorization-scoped latest customer states",
+        "security": [{ "entraBearer": ["Deployment.Read"] }],
+        "responses": {
+          "200": { "description": "Scoped latest customer states", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CustomerList" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/v1/customers/{customerId}": {
+      "get": {
+        "operationId": "getCustomer",
+        "summary": "Get current verified state for one customer",
+        "security": [{ "entraBearer": ["Deployment.Read"] }],
+        "parameters": [{ "name": "customerId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Current verified customer state", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CustomerDetail" } } } },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/v1/deployments": {
+      "get": {
+        "operationId": "getDeployments",
+        "summary": "Query authorization-scoped deployment history",
+        "security": [{ "entraBearer": ["Deployment.Read"] }],
+        "parameters": [
+          { "name": "customerId", "in": "query", "schema": { "type": "string" } },
+          { "name": "status", "in": "query", "schema": { "$ref": "#/components/schemas/RunStatus" } },
+          { "name": "mode", "in": "query", "schema": { "$ref": "#/components/schemas/Mode" } },
+          { "name": "workflow", "in": "query", "schema": { "type": "string" } },
+          { "name": "branch", "in": "query", "schema": { "type": "string" } },
+          { "name": "from", "in": "query", "schema": { "type": "string", "format": "date-time" } },
+          { "name": "to", "in": "query", "schema": { "type": "string", "format": "date-time" } },
+          { "name": "cursor", "in": "query", "schema": { "type": "string" } },
+          { "name": "pageSize", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 25 } }
+        ],
+        "responses": {
+          "200": { "description": "Scoped deployment page", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeploymentPage" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/v1/deployments/{eventId}": {
+      "get": {
+        "operationId": "getDeployment",
+        "summary": "Get role-projected deployment detail",
+        "security": [{ "entraBearer": ["Deployment.Read"] }],
+        "parameters": [{ "name": "eventId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Role-projected deployment detail", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeploymentDto" } } } },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/v1/health": {
+      "get": {
+        "operationId": "health",
+        "summary": "Check API process health",
+        "security": [{ "entraBearer": ["Deployment.Read"] }],
+        "responses": {
+          "200": { "description": "Healthy" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "503": { "description": "Unhealthy" }
         }
       }
     }
   },
   "components": {
     "securitySchemes": {
-      "function_key": {
-        "type": "apiKey",
-        "name": "code",
-        "in": "query",
-        "description": "Azure Functions function key (pass as ?code=YOUR_KEY)"
+      "functionKey": { "type": "apiKey", "in": "header", "name": "x-functions-key" },
+      "entraBearer": {
+        "type": "oauth2",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/authorize",
+            "tokenUrl": "https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/token",
+            "scopes": { "Deployment.Read": "Read authorized deployment status" }
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": { "description": "Invalid request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "Unauthorized": { "description": "Authentication failed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "Forbidden": { "description": "Caller is not authorized for this data", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "NotFound": { "description": "Resource not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+    },
+    "schemas": {
+      "RunStatus": { "type": "string", "enum": ["success", "partial", "failed", "cancelled", "skipped"] },
+      "Mode": { "type": "string", "enum": ["execute", "dryRun"] },
+      "Outcome": { "type": "string", "enum": ["success", "failed", "alreadyCurrent", "newerPresent", "excluded", "planned", "skipped"] },
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": { "error": { "type": "string" }, "detail": { "type": "string" }, "errors": { "type": "array", "items": { "type": "string" } } }
+      },
+      "Acceptance": {
+        "type": "object",
+        "required": ["eventId", "duplicate", "acceptedAt"],
+        "properties": {
+          "eventId": { "type": "string" },
+          "duplicate": { "type": "boolean" },
+          "acceptedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Customer": {
+        "type": "object",
+        "required": ["id", "name"],
+        "properties": { "id": { "type": "string" }, "name": { "type": "string" } }
+      },
+      "Summary": {
+        "type": "object",
+        "required": ["total", "succeeded", "failed", "skipped", "planned"],
+        "properties": {
+          "total": { "type": "integer", "minimum": 0 },
+          "succeeded": { "type": "integer", "minimum": 0 },
+          "failed": { "type": "integer", "minimum": 0 },
+          "skipped": { "type": "integer", "minimum": 0 },
+          "planned": { "type": "integer", "minimum": 0 }
+        }
+      },
+      "SourceInput": {
+        "type": "object",
+        "required": ["repository", "workflow", "runId", "runAttempt"],
+        "properties": {
+          "repository": { "type": "string", "minLength": 1 },
+          "workflow": { "type": "string", "minLength": 1 },
+          "runId": { "type": "integer", "minimum": 1 },
+          "runAttempt": { "type": "integer", "minimum": 1 },
+          "jobName": { "type": ["string", "null"] },
+          "runUrl": { "type": ["string", "null"], "format": "uri" },
+          "branch": { "type": ["string", "null"] },
+          "commitSha": { "type": ["string", "null"] },
+          "actor": { "type": ["string", "null"] },
+          "artifactRunId": { "type": ["integer", "null"] },
+          "runnerLabel": { "type": ["string", "null"] },
+          "serviceName": { "type": ["string", "null"] }
+        }
+      },
+      "SourceDto": {
+        "type": "object",
+        "properties": {
+          "repository": { "type": ["string", "null"] },
+          "workflow": { "type": ["string", "null"] },
+          "runId": { "type": ["integer", "null"] },
+          "runAttempt": { "type": ["integer", "null"] },
+          "jobName": { "type": ["string", "null"] },
+          "runUrl": { "type": ["string", "null"] },
+          "branch": { "type": ["string", "null"] },
+          "commitSha": { "type": ["string", "null"] },
+          "actor": { "type": ["string", "null"] },
+          "artifactRunId": { "type": ["integer", "null"] },
+          "runnerLabel": { "type": ["string", "null"] },
+          "serviceName": { "type": ["string", "null"] }
+        }
+      },
+      "OperationInput": {
+        "type": "object",
+        "required": ["applicationName", "action", "outcome"],
+        "properties": {
+          "scope": { "type": "string" },
+          "tenantId": { "type": ["string", "null"] },
+          "tenantLabel": { "type": ["string", "null"] },
+          "applicationId": { "type": ["string", "null"] },
+          "applicationName": { "type": "string", "minLength": 1 },
+          "publisher": { "type": ["string", "null"] },
+          "previousVersion": { "type": ["string", "null"] },
+          "targetVersion": { "type": ["string", "null"] },
+          "observedVersion": { "type": ["string", "null"] },
+          "action": { "type": "string", "minLength": 1 },
+          "outcome": { "$ref": "#/components/schemas/Outcome" },
+          "durationMs": { "type": ["integer", "null"], "minimum": 0 },
+          "safeMessage": { "type": ["string", "null"] },
+          "internalError": { "type": ["string", "null"], "maxLength": 8192 }
+        }
+      },
+      "OperationDto": {
+        "allOf": [
+          { "$ref": "#/components/schemas/OperationInput" },
+          {
+            "type": "object",
+            "properties": {
+              "safeMessage": false,
+              "message": { "type": ["string", "null"] },
+              "internalError": { "type": ["string", "null"] }
+            }
+          }
+        ]
+      },
+      "DeploymentEventInput": {
+        "type": "object",
+        "required": ["schemaVersion", "eventId", "source", "customer", "mode", "status", "startedAt", "completedAt", "detailCompleteness", "summary", "operations"],
+        "properties": {
+          "schemaVersion": { "const": "1.0" },
+          "eventId": { "type": "string", "maxLength": 256, "description": "repositoryKey:runId:runAttempt:customerId:mode; non-URL-safe repository separators are replaced by ~" },
+          "source": { "$ref": "#/components/schemas/SourceInput" },
+          "customer": { "$ref": "#/components/schemas/Customer" },
+          "mode": { "$ref": "#/components/schemas/Mode" },
+          "status": { "$ref": "#/components/schemas/RunStatus" },
+          "startedAt": { "type": "string", "format": "date-time" },
+          "completedAt": { "type": "string", "format": "date-time" },
+          "detailCompleteness": { "type": "string", "enum": ["full", "summary"] },
+          "summary": { "$ref": "#/components/schemas/Summary" },
+          "operations": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/components/schemas/OperationInput" } }
+        }
+      },
+      "DeploymentDto": {
+        "type": "object",
+        "required": ["eventId", "source", "customer", "mode", "status", "startedAt", "completedAt", "detailCompleteness", "summary"],
+        "properties": {
+          "eventId": { "type": "string" },
+          "source": { "$ref": "#/components/schemas/SourceDto" },
+          "customer": { "$ref": "#/components/schemas/Customer" },
+          "mode": { "$ref": "#/components/schemas/Mode" },
+          "status": { "$ref": "#/components/schemas/RunStatus" },
+          "startedAt": { "type": "string", "format": "date-time" },
+          "completedAt": { "type": "string", "format": "date-time" },
+          "detailCompleteness": { "type": "string", "enum": ["full", "summary"] },
+          "summary": { "$ref": "#/components/schemas/Summary" },
+          "operations": { "type": ["array", "null"], "items": { "$ref": "#/components/schemas/OperationDto" } }
+        }
+      },
+      "Me": {
+        "type": "object",
+        "required": ["name", "isAdaptive", "customerIds"],
+        "properties": {
+          "name": { "type": "string" },
+          "isAdaptive": { "type": "boolean" },
+          "customerIds": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+        }
+      },
+      "CustomerLatest": {
+        "type": "object",
+        "required": ["customerId", "customerName", "eventId", "status", "mode", "completedAt", "summary"],
+        "properties": {
+          "customerId": { "type": "string" },
+          "customerName": { "type": "string" },
+          "eventId": { "type": "string" },
+          "status": { "$ref": "#/components/schemas/RunStatus" },
+          "mode": { "$ref": "#/components/schemas/Mode" },
+          "completedAt": { "type": "string", "format": "date-time" },
+          "summary": { "$ref": "#/components/schemas/Summary" }
+        }
+      },
+      "CurrentState": {
+        "type": "object",
+        "required": ["customerId", "tenantId", "applicationId", "applicationName", "lastOutcome", "verifiedAt", "eventId"],
+        "properties": {
+          "customerId": { "type": "string" },
+          "tenantId": { "type": "string" },
+          "tenantLabel": { "type": ["string", "null"] },
+          "applicationId": { "type": "string" },
+          "applicationName": { "type": "string" },
+          "version": { "type": ["string", "null"] },
+          "lastOutcome": { "$ref": "#/components/schemas/Outcome" },
+          "verifiedAt": { "type": "string", "format": "date-time" },
+          "eventId": { "type": "string" }
+        }
+      },
+      "CustomerList": {
+        "type": "object",
+        "required": ["items", "generatedAt"],
+        "properties": {
+          "items": { "type": "array", "items": { "$ref": "#/components/schemas/CustomerLatest" } },
+          "generatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CustomerDetail": {
+        "type": "object",
+        "required": ["customer", "currentState"],
+        "properties": {
+          "customer": { "$ref": "#/components/schemas/CustomerLatest" },
+          "currentState": { "type": "array", "items": { "$ref": "#/components/schemas/CurrentState" } }
+        }
+      },
+      "DeploymentPage": {
+        "type": "object",
+        "required": ["items"],
+        "properties": {
+          "items": { "type": "array", "items": { "$ref": "#/components/schemas/DeploymentDto" } },
+          "nextCursor": { "type": ["string", "null"] }
+        }
       }
     }
-  },
-  "tags": [
-    {
-      "name": "Clients",
-      "description": "Client deployment status operations"
-    },
-    {
-      "name": "Applications",
-      "description": "Application management operations"
-    },
-    {
-      "name": "Customers",
-      "description": "Customer management operations"
-    },
-    {
-      "name": "Workflows",
-      "description": "GitHub workflow integration"
-    },
-    {
-      "name": "Deployments",
-      "description": "Deployment registration"
-    },
-    {
-      "name": "Admin",
-      "description": "Administrative operations"
-    }
-  ]
+  }
 }
