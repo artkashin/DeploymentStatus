@@ -49,7 +49,7 @@ Set `AZURITE_CONNECTION_STRING=UseDevelopmentStorage=true` while running `dotnet
 
 ## Production setup
 
-1. Run `infra/Initialize-DeploymentStatusAdaptiveGroups.ps1` as an Entra Groups Administrator to create the internal-members and approved-guests groups and write their IDs to `infra/customer-access.json`. Populate customer group IDs in the same file.
+1. Run `infra/Initialize-DeploymentStatusAdaptiveGroups.ps1` as an Entra Groups Administrator to create the internal-members group and write its ID to `infra/customer-access.json`. Populate customer group IDs in the same file; customer guests belong only to their respective customer group.
 2. Run `infra/Setup-Entra.ps1` once without a Static Web App URL to create the API and SPA registrations. Record the emitted client IDs.
 3. Deploy `infra/main.bicep` with the production resource group, Entra tenant ID, and API client ID.
 4. Run `infra/Setup-Entra.ps1` again with `-StaticWebAppUrls` set to every production dashboard URL so PKCE redirects and group role assignments are idempotently applied.

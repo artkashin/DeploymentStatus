@@ -42,10 +42,8 @@ function Get-OrCreateGroup([string]$DisplayName, [string]$MailNickname, [string]
 }
 
 $members = Get-OrCreateGroup 'DeploymentStatus - Adaptive Members' 'deploymentstatusadaptivemembers' 'All enabled internal Adaptive tenant members with DeploymentStatus Adaptive access.' '(user.userType -eq "Member") and (user.accountEnabled -eq true)'
-$guests = Get-OrCreateGroup 'DeploymentStatus - Adaptive Guests' 'deploymentstatusadaptiveguests' 'Approved B2B guests with DeploymentStatus Adaptive access.' ''
-$access.adaptiveGroupObjectIds = @([string]$members.id, [string]$guests.id)
+$access.adaptiveGroupObjectIds = @([string]$members.id)
 $access | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $AccessConfigPath -Encoding utf8
 
 Write-Host "Adaptive members group: $($members.id)"
-Write-Host "Adaptive guests group: $($guests.id)"
-Write-Host 'Run Setup-Entra.ps1 next to assign DeploymentStatus.Adaptive.All to both groups.'
+Write-Host 'Run Setup-Entra.ps1 next to assign DeploymentStatus.Adaptive.All to this group.'
