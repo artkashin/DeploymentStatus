@@ -57,7 +57,7 @@ foreach ($customerId in @($access.customers.Keys | Sort-Object)) {
 }
 $scope = @($apiApp.api.oauth2PermissionScopes | Where-Object value -eq 'Deployment.Read') | Select-Object -First 1
 if (-not $scope) { $scope = [ordered]@{ id = [guid]::NewGuid(); adminConsentDescription = 'Read authorized deployment status data.'; adminConsentDisplayName = 'Read deployment status'; isEnabled = $true; type = 'User'; userConsentDescription = 'Read deployment status assigned to your account.'; userConsentDisplayName = 'Read deployment status'; value = 'Deployment.Read' } }
-$apiBody = @{ identifierUris = @("api://$($apiApp.appId)"); appRoles = @($roles); api = @{ oauth2PermissionScopes = @($scope) } }
+$apiBody = @{ identifierUris = @("api://$($apiApp.appId)"); appRoles = @($roles); api = @{ oauth2PermissionScopes = @($scope); requestedAccessTokenVersion = 2 } }
 Invoke-Graph PATCH "applications/$($apiApp.id)" $apiBody | Out-Null
 
 $apiSp = @(az ad sp list --filter "appId eq '$($apiApp.appId)'" | ConvertFrom-Json) | Select-Object -First 1
