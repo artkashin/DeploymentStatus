@@ -11,7 +11,7 @@ async function routeEmptyAdaptive(page: import('@playwright/test').Page) {
 test('renders the secured application shell in local development mode', async ({ page }) => {
   await routeEmptyAdaptive(page)
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'Fleet status', exact: true })).toBeVisible()
+  await expect(page.getByText('Fleet Status Overview', { exact: true })).toBeVisible()
   await expect(page.getByText('No authoritative deployment events have been received yet.')).toBeVisible()
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
 })
@@ -38,7 +38,7 @@ test('remains usable at a narrow mobile viewport', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await routeEmptyAdaptive(page)
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'Fleet status', exact: true })).toBeVisible()
+  await expect(page.getByText('Fleet Status Overview', { exact: true })).toBeVisible()
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
   expect(overflow).toBeLessThanOrEqual(0)
 })
