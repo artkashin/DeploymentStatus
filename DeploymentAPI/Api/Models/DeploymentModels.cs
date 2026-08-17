@@ -61,6 +61,7 @@ public sealed class TenantAppState
     public string? Publisher { get; set; }
     public string? DesiredVersion { get; set; }
     public string? InstalledVersion { get; set; }
+    public DateTimeOffset? InstalledAt { get; set; }
     public DateTimeOffset? ObservedAt { get; set; }
     // current, outdated, failed, unavailable, or planned
     public required string State { get; set; }
@@ -171,6 +172,20 @@ public sealed class CustomerLatestStatus
     public int AttentionAppCount { get; init; }
     public int FailedAppCount { get; init; }
     public string Health { get; init; } = "unknown";
+    public List<TenantLatestStatus> Tenants { get; init; } = [];
+}
+
+public sealed class TenantLatestStatus
+{
+    public required string TenantId { get; init; }
+    public string? TenantLabel { get; init; }
+    public string? InstalledVersion { get; init; }
+    public DateTimeOffset? InstalledAt { get; init; }
+    public int DesiredAppCount { get; init; }
+    public int CurrentAppCount { get; init; }
+    public int AttentionAppCount { get; init; }
+    public int FailedAppCount { get; init; }
+    public string Health { get; init; } = "unknown";
 }
 
 public sealed class CurrentDeploymentState
@@ -196,6 +211,7 @@ public sealed class CustomerDesiredAppState
     public string? Publisher { get; init; }
     public string? DesiredVersion { get; init; }
     public string? InstalledVersion { get; init; }
+    public DateTimeOffset? InstalledAt { get; init; }
     public DateTimeOffset? ObservedAt { get; init; }
     public required string State { get; init; }
     public DeploymentOutcome? LastOutcome { get; init; }

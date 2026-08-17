@@ -91,7 +91,7 @@ public sealed class InMemoryDeploymentStore : IDeploymentStore
             CustomerId = item.Customer.Id, TenantId = snapshot.TenantId, TenantLabel = snapshot.TenantLabel,
             ApplicationId = snapshot.ApplicationId ?? snapshot.ApplicationName.ToLowerInvariant().Replace(' ', '-'),
             ApplicationName = snapshot.ApplicationName, Publisher = snapshot.Publisher, DesiredVersion = snapshot.DesiredVersion,
-            InstalledVersion = installed, ObservedAt = observedAt, State = snapshot.State,
+            InstalledVersion = installed, InstalledAt = snapshot.InstalledVersion is null ? existing?.InstalledAt : snapshot.InstalledAt, ObservedAt = observedAt, State = snapshot.State,
             LastOutcome = snapshot.LastOutcome, SafeMessage = snapshot.SafeMessage, UpdatedAt = item.CompletedAt, EventId = item.EventId
         };
     }
@@ -102,7 +102,15 @@ public sealed class InMemoryDeploymentStore : IDeploymentStore
         var failed = states.Count(state => state.State == "failed");
         var current = states.Count(state => state.State == "current");
         var attention = states.Count - current - failed;
-        return new CustomerLatestStatus { CustomerId = item.CustomerId, CustomerName = item.CustomerName, EventId = item.EventId, Status = item.Status, Mode = item.Mode, CompletedAt = item.CompletedAt, Summary = item.Summary, BcVersion = item.BcVersion, PackageVersion = item.PackageVersion, DesiredAppCount = states.Count, CurrentAppCount = current, AttentionAppCount = attention, FailedAppCount = failed, Health = failed > 0 ? "failed" : attention > 0 ? "attention" : states.Count > 0 ? "current" : "unknown" };
+        var tenants = states.GroupBy(state => state.TenantId, StringComparer.OrdinalIgnoreCase).Select(group => TenantHealth(group)).OrderBy(tenant => tenant.TenantLabel ?? tenant.TenantId).ToList();
+        return new CustomerLatestStatus { CustomerId = item.CustomerId, CustomerName = item.CustomerName, EventId = item.EventId, Status = item.Status, Mode = item.Mode, CompletedAt = item.CompletedAt, Summary = item.Summary, BcVersion = item.BcVersion, PackageVersion = item.PackageVersion, DesiredAppCount = states.Count, CurrentAppCount = current, AttentionAppCount = attention, FailedAppCount = failed, Health = failed > 0 ? "failed" : attention > 0 ? "attention" : states.Count > 0 ? "current" : "unknown", Tenants = tenants };
+    }
+
+    internal static TenantLatestStatus TenantHealth(IEnumerable<CustomerDesiredAppState> states)
+    {
+        var values = states.ToList(); var failed = values.Count(state => state.State == "failed"); var current = values.Count(state => state.State == "current"); var attention = values.Count - current - failed;
+        var versions = values.Select(state => state.InstalledVersion).Where(version => !string.IsNullOrWhiteSpace(version)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        return new TenantLatestStatus { TenantId = values[0].TenantId, TenantLabel = values[0].TenantLabel, InstalledVersion = versions.Count == 1 ? versions[0] : versions.Count == 0 ? null : "Multiple versions", InstalledAt = values.Where(state => state.InstalledAt.HasValue).Select(state => state.InstalledAt).Max(), DesiredAppCount = values.Count, CurrentAppCount = current, AttentionAppCount = attention, FailedAppCount = failed, Health = failed > 0 ? "failed" : attention > 0 ? "attention" : values.Count > 0 ? "current" : "unknown" };
     }
 }
 

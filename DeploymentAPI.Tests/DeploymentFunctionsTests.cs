@@ -81,6 +81,8 @@ public sealed class DeploymentFunctionsTests
         Assert.Equal("1.0.1205.0", state.InstalledVersion);
         Assert.Equal("failed", state.State);
         Assert.Equal("failed", customer.Health);
+        Assert.Equal("default", Assert.Single(customer.Tenants).TenantId);
+        Assert.Equal("1.0.1205.0", customer.Tenants[0].InstalledVersion);
     }
 
     private static DeploymentFunctions Functions(IDeploymentStore store)

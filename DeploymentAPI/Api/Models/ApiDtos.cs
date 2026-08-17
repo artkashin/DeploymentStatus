@@ -10,7 +10,7 @@ public sealed record DeploymentOperationDto(string Scope, string? TenantId, stri
     long? DurationMs, string? Message, string? InternalError);
 public sealed record TenantAppStateDto(string TenantId, string? TenantLabel, string? ApplicationId,
     string ApplicationName, string? Publisher, string? DesiredVersion, string? InstalledVersion,
-    DateTimeOffset? ObservedAt, string State, DeploymentOutcome? LastOutcome, string? Message);
+    DateTimeOffset? InstalledAt, DateTimeOffset? ObservedAt, string State, DeploymentOutcome? LastOutcome, string? Message);
 public sealed record DeploymentEventDto(string EventId, DeploymentSourceDto Source, DeploymentCustomer Customer,
     DeploymentMode Mode, DeploymentRunStatus Status, DateTimeOffset StartedAt, DateTimeOffset CompletedAt,
     string DetailCompleteness, DeploymentSummary Summary, ArtifactSourceReferenceDto? ArtifactSource, IReadOnlyList<TenantAppStateDto>? TenantAppStates, IReadOnlyList<DeploymentOperationDto>? Operations);
@@ -42,7 +42,7 @@ public static class DeploymentMapping
         IReadOnlyList<TenantAppStateDto>? tenantAppStates = includeOperations
             ? item.TenantAppStates.Select(state => new TenantAppStateDto(state.TenantId, state.TenantLabel,
                 state.ApplicationId, state.ApplicationName, state.Publisher, state.DesiredVersion,
-                state.InstalledVersion, state.ObservedAt, state.State, state.LastOutcome, state.SafeMessage)).ToList()
+                state.InstalledVersion, state.InstalledAt, state.ObservedAt, state.State, state.LastOutcome, state.SafeMessage)).ToList()
             : null;
         ArtifactSourceReferenceDto? artifactSource = item.ArtifactSource is null ? null : new ArtifactSourceReferenceDto(
             item.ArtifactSource.Branch, item.ArtifactSource.BcVersion,

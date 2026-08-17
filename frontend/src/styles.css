@@ -71,6 +71,9 @@ tr:last-child td { border-bottom: 0; }
 .fleet-current, .app-current { background: #ecfdf3; }
 .fleet-attention, .app-outdated, .app-unavailable, .app-planned { background: #fffaeb; }
 .fleet-failed, .app-failed { background: #fff1f3; }
+.fleet-customer { background: #f2f4f7; }
+.fleet-customer td { font-weight: 600; }
+.tenant-name { padding-left: 24px !important; color: #475467; text-transform: uppercase; font-size: 12px; }
 .version-pill.failed { border-color: #f7b5c0; background: #ffe4e8; color: #b4233d; }
 .status-icon.failed { color: #d92d20; }
 details { margin-top: 7px; } details summary { cursor: pointer; color: #9f243b; } pre { max-width: 600px; white-space: pre-wrap; overflow-wrap: anywhere; background: #fff1f3; padding: 9px; border-radius: 6px; }

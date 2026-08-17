@@ -255,7 +255,7 @@
           "tenantId": { "type": "string" }, "tenantLabel": { "type": ["string", "null"] },
           "applicationId": { "type": ["string", "null"] }, "applicationName": { "type": "string" },
           "publisher": { "type": ["string", "null"] }, "desiredVersion": { "type": ["string", "null"] },
-          "installedVersion": { "type": ["string", "null"] }, "observedAt": { "type": ["string", "null"], "format": "date-time" },
+          "installedVersion": { "type": ["string", "null"] }, "installedAt": { "type": ["string", "null"], "format": "date-time" }, "observedAt": { "type": ["string", "null"], "format": "date-time" },
           "state": { "enum": ["current", "outdated", "failed", "unavailable", "planned"] },
           "lastOutcome": { "oneOf": [{ "$ref": "#/components/schemas/Outcome" }, { "type": "null" }] },
           "safeMessage": { "type": ["string", "null"] }
@@ -333,8 +333,13 @@
           "bcVersion": { "type": ["string", "null"] },
           "desiredAppCount": { "type": "integer" }, "currentAppCount": { "type": "integer" },
           "attentionAppCount": { "type": "integer" }, "failedAppCount": { "type": "integer" },
-          "health": { "enum": ["current", "attention", "failed", "unknown"] }
+          "health": { "enum": ["current", "attention", "failed", "unknown"] },
+          "tenants": { "type": "array", "items": { "$ref": "#/components/schemas/TenantLatest" } }
         }
+      },
+      "TenantLatest": {
+        "type": "object", "required": ["tenantId", "desiredAppCount", "currentAppCount", "attentionAppCount", "failedAppCount", "health"],
+        "properties": { "tenantId": { "type": "string" }, "tenantLabel": { "type": ["string", "null"] }, "installedVersion": { "type": ["string", "null"] }, "installedAt": { "type": ["string", "null"], "format": "date-time" }, "desiredAppCount": { "type": "integer" }, "currentAppCount": { "type": "integer" }, "attentionAppCount": { "type": "integer" }, "failedAppCount": { "type": "integer" }, "health": { "enum": ["current", "attention", "failed", "unknown"] } }
       },
       "DesiredAppState": {
         "type": "object",
@@ -347,7 +352,7 @@
           "applicationName": { "type": "string" },
           "publisher": { "type": ["string", "null"] },
           "desiredVersion": { "type": ["string", "null"] },
-          "installedVersion": { "type": ["string", "null"] },
+          "installedVersion": { "type": ["string", "null"] }, "installedAt": { "type": ["string", "null"], "format": "date-time" },
           "observedAt": { "type": ["string", "null"], "format": "date-time" },
           "state": { "enum": ["current", "outdated", "failed", "unavailable", "planned"] },
           "lastOutcome": { "$ref": "#/components/schemas/Outcome" },

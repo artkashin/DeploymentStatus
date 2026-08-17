@@ -231,6 +231,7 @@ public sealed class TableDeploymentStore(TableServiceClient serviceClient) : IDe
                 CustomerId = item.Customer.Id, TenantId = snapshot.TenantId, TenantLabel = snapshot.TenantLabel,
                 ApplicationId = appId, ApplicationName = snapshot.ApplicationName, Publisher = snapshot.Publisher,
                 DesiredVersion = snapshot.DesiredVersion, InstalledVersion = snapshot.InstalledVersion ?? previous?.InstalledVersion,
+                InstalledAt = snapshot.InstalledVersion is null ? previous?.InstalledAt : snapshot.InstalledAt,
                 ObservedAt = snapshot.InstalledVersion is null ? previous?.ObservedAt : snapshot.ObservedAt ?? item.CompletedAt,
                 State = snapshot.State, LastOutcome = snapshot.LastOutcome, SafeMessage = snapshot.SafeMessage,
                 UpdatedAt = item.CompletedAt, EventId = item.EventId
@@ -254,7 +255,8 @@ public sealed class TableDeploymentStore(TableServiceClient serviceClient) : IDe
         var failed = states.Count(state => state.State == "failed");
         var current = states.Count(state => state.State == "current");
         var attention = states.Count - current - failed;
-        return new CustomerLatestStatus { CustomerId = item.CustomerId, CustomerName = item.CustomerName, EventId = item.EventId, Status = item.Status, Mode = item.Mode, CompletedAt = item.CompletedAt, Summary = item.Summary, BcVersion = item.BcVersion, PackageVersion = item.PackageVersion, DesiredAppCount = states.Count, CurrentAppCount = current, AttentionAppCount = attention, FailedAppCount = failed, Health = failed > 0 ? "failed" : attention > 0 ? "attention" : states.Count > 0 ? "current" : "unknown" };
+        var tenants = states.GroupBy(state => state.TenantId, StringComparer.OrdinalIgnoreCase).Select(InMemoryDeploymentStore.TenantHealth).OrderBy(tenant => tenant.TenantLabel ?? tenant.TenantId).ToList();
+        return new CustomerLatestStatus { CustomerId = item.CustomerId, CustomerName = item.CustomerName, EventId = item.EventId, Status = item.Status, Mode = item.Mode, CompletedAt = item.CompletedAt, Summary = item.Summary, BcVersion = item.BcVersion, PackageVersion = item.PackageVersion, DesiredAppCount = states.Count, CurrentAppCount = current, AttentionAppCount = attention, FailedAppCount = failed, Health = failed > 0 ? "failed" : attention > 0 ? "attention" : states.Count > 0 ? "current" : "unknown", Tenants = tenants };
     }
 
     private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
