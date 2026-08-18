@@ -8,6 +8,8 @@ param functionAppName string = 'func-deployment-status-api'
 param functionPlanName string = 'ASP-rgdeploymentstatus-ac50'
 @description('Globally unique Static Web App name.')
 param staticWebAppName string = 'swa-deployment-status'
+@description('Key Vault holding the Entra group/customer access mapping.')
+param keyVaultName string = ''
 @description('Microsoft Entra tenant that issues dashboard tokens.')
 param entraTenantId string
 @description('Application client ID of the DeploymentStatus API registration.')
@@ -23,6 +25,7 @@ param dashboardOrigins array = [
 ]
 
 var token = uniqueString(subscription().id, resourceGroup().id)
+var resolvedKeyVaultName = empty(keyVaultName) ? 'kv${token}' : keyVaultName
 var storageName = 'stds${token}'
 var insightsName = 'appi-deployment-status-${token}'
 var deploymentContainerName = 'function-releases'
@@ -39,6 +42,19 @@ resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
     allowBlobPublicAccess: false
     minimumTlsVersion: 'TLS1_2'
     supportsHttpsTrafficOnly: true
+  }
+}
+
+resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
+  name: resolvedKeyVaultName
+  location: location
+  properties: {
+    tenantId: entraTenantId
+    enableRbacAuthorization: true
+    enableSoftDelete: true
+    softDeleteRetentionInDays: 90
+    sku: { family: 'A', name: 'standard' }
+    accessPolicies: []
   }
 }
 
@@ -156,3 +172,4 @@ output functionAppName string = functionApp.name
 output functionApiUrl string = 'https://${functionApp.properties.defaultHostName}'
 output staticWebAppUrl string = 'https://${staticWebApp.properties.defaultHostname}'
 output storageAccountName string = storage.name
+output keyVaultName string = keyVault.name

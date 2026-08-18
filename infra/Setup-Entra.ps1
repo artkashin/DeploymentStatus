@@ -4,12 +4,15 @@ param(
     [string]$SpaDisplayName = 'DeploymentStatus Dashboard',
     [Alias('StaticWebAppUrl')]
     [string[]]$StaticWebAppUrls = @(),
-    [string]$AccessConfigPath = (Join-Path $PSScriptRoot 'customer-access.json')
+    [Parameter(Mandatory)][string]$KeyVaultName,
+    [string]$AccessSecretName = 'deployment-status-access'
 )
 
 $ErrorActionPreference = 'Stop'
 if (-not (Get-Command az -ErrorAction SilentlyContinue)) { throw 'Azure CLI is required.' }
-$access = Get-Content -LiteralPath $AccessConfigPath -Raw | ConvertFrom-Json -AsHashtable
+$accessJson = az keyvault secret show --vault-name $KeyVaultName --name $AccessSecretName --query value -o tsv
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($accessJson)) { throw "Unable to read Key Vault secret '$AccessSecretName' from '$KeyVaultName'." }
+$access = $accessJson | ConvertFrom-Json -AsHashtable
 $graphToken = az account get-access-token --resource-type ms-graph --query accessToken -o tsv
 if ($LASTEXITCODE -ne 0 -or -not $graphToken) { throw 'Unable to acquire a Microsoft Graph access token.' }
 $graphHeaders = @{ Authorization = "Bearer $graphToken" }

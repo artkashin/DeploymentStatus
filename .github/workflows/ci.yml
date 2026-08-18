@@ -37,11 +37,11 @@ jobs:
         shell: pwsh
         run: |
           $errors = @()
-          foreach ($path in @('infra/Setup-Entra.ps1','infra/Set-DeploymentReporterKey.ps1')) {
+          foreach ($path in @('infra/Setup-Entra.ps1','infra/Initialize-DeploymentStatusAdaptiveGroups.ps1','infra/Set-DeploymentStatusAccessSecret.ps1','infra/Set-DeploymentStatusCustomDomain.ps1','infra/Set-DeploymentReporterKey.ps1')) {
             [void][System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$null, [ref]$errors)
           }
           if ($errors.Count) { $errors | Format-List | Out-String | Write-Error }
-          Get-Content -LiteralPath infra/customer-access.json -Raw | ConvertFrom-Json | Out-Null
+          Get-Content -LiteralPath infra/customer-access.example.json -Raw | ConvertFrom-Json | Out-Null
 
   frontend:
     runs-on: ubuntu-latest

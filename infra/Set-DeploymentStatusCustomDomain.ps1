@@ -6,6 +6,7 @@ param(
     [string]$FunctionAppName = 'func-deployment-status-api',
     [string]$Hostname = 'deployments.adaptivenav.com',
     [string]$StaticWebAppHostname = 'orange-island-09ab4780f.7.azurestaticapps.net',
+    [Parameter(Mandatory)][string]$KeyVaultName,
     [string]$EntraSetupScript = (Join-Path $PSScriptRoot 'Setup-Entra.ps1')
 )
 
@@ -22,7 +23,7 @@ if ($LASTEXITCODE -ne 0) { throw "Azure Static Web Apps rejected custom hostname
 az functionapp cors add --subscription $SubscriptionId --resource-group $ResourceGroup --name $FunctionAppName --allowed-origins "https://$Hostname"
 if ($LASTEXITCODE -ne 0) { throw "Unable to add https://$Hostname to Function App CORS." }
 
-& $EntraSetupScript -StaticWebAppUrls @("https://$StaticWebAppHostname", "https://$Hostname")
+& $EntraSetupScript -KeyVaultName $KeyVaultName -StaticWebAppUrls @("https://$StaticWebAppHostname", "https://$Hostname")
 if ($LASTEXITCODE -ne 0) { throw 'Unable to update Entra SPA redirect URIs and role assignments.' }
 
 az staticwebapp hostname show --subscription $SubscriptionId --resource-group $ResourceGroup --name $StaticWebAppName --hostname $Hostname -o json

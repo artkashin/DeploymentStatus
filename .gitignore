@@ -520,6 +520,9 @@ temp/
 
 ##
 ## Security and Secrets
+
+# DeploymentStatus Entra group mapping is stored in Azure Key Vault.
+infra/customer-access.json
 ##
 
 # GitHub App private keys
