@@ -1,9 +1,9 @@
-import { useMemo, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useIsAuthenticated, useMsal } from '@azure/msal-react'
 import { useQuery } from '@tanstack/react-query'
 import { Badge, Button, Card, Input, Spinner, Tooltip } from '@fluentui/react-components'
 import { AlertRegular, ArrowClockwiseRegular, ArrowDownloadRegular, CheckmarkCircleRegular, OpenRegular, SearchRegular, SignOutRegular, WarningRegular } from '@fluentui/react-icons'
-import { Link, Route, Routes, useParams } from 'react-router-dom'
+import { Link, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import { ApiClient, duration, formatDate } from './api'
 import { apiScope, authDisabled } from './auth'
 import type { ArtifactSource, CustomerLatest, Deployment, Operation, RunStatus } from './types'
@@ -21,6 +21,9 @@ function Shell() {
   const { instance, accounts } = useMsal()
   const api = useMemo(() => new ApiClient(instance, accounts[0]), [instance, accounts])
   const me = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const searchableCustomers = useQuery({ queryKey: ['customers', 'search'], queryFn: api.customers })
+  const [search, setSearch] = useState('')
+  const navigate = useNavigate()
   const recoverSession = () => {
     instance.clearCache()
     void instance.loginRedirect({ scopes: [apiScope], prompt: 'select_account' })
@@ -28,7 +31,7 @@ function Shell() {
   if (me.isLoading) return <Centered><Spinner label="Checking access…" /></Centered>
   if (me.error) return <ErrorState error={me.error} onSignIn={recoverSession} />
   return <div className="app-shell">
-    <header className="system-bar"><Link to="/" className="system-title"><h1>System Info Dashboard</h1></Link><div className="system-actions"><Input className="system-search" contentBefore={<SearchRegular />} placeholder="Search systems..." aria-label="Search systems" /><Button appearance="subtle" icon={<AlertRegular />} aria-label="Notifications" /><span className="profile-mark" title={me.data?.name}>{me.data?.name?.slice(0, 1).toUpperCase() || 'A'}</span>{!authDisabled && <Button appearance="subtle" icon={<SignOutRegular />} onClick={() => void instance.logoutRedirect()} aria-label="Sign out" />}</div></header>
+    <header className="system-bar"><Link to="/" className="system-title"><h1>System Info Dashboard</h1></Link><div className="system-actions"><Input className="system-search" contentBefore={<SearchRegular />} placeholder="Search systems..." aria-label="Search systems" value={search} onChange={(_, data) => setSearch(data.value)} onKeyDown={event => { if (event.key !== 'Enter') return; const match = (searchableCustomers.data?.items ?? []).find(item => `${item.customerName} ${item.customerId}`.toLowerCase().includes(search.trim().toLowerCase())); if (match) { setSearch(''); navigate(`/customers/${match.customerId}`) } }} /><Button className="notification-button" appearance="subtle" icon={<AlertRegular />} aria-label="Notifications" /><span className="profile-mark" title={me.data?.name}>{me.data?.name?.slice(0, 1).toUpperCase() || 'A'}</span>{!authDisabled && <Button appearance="subtle" icon={<SignOutRegular />} onClick={() => void instance.logoutRedirect()} aria-label="Sign out" />}</div></header>
     <Routes>
       <Route path="/" element={me.data!.isAdaptive ? <AdaptiveDashboard api={api} /> : <CustomerLanding api={api} customerIds={me.data!.customerIds} />} />
       <Route path="/customers/:customerId" element={<CustomerPage api={api} />} />

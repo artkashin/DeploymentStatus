@@ -5,7 +5,7 @@ a { color: #1264a3; text-decoration: none; }
 a:hover { text-decoration: underline; }
 .app-shell > header { position: sticky; top: 0; z-index: 10; height: 58px; display: flex; align-items: center; justify-content: space-between; padding: 0 26px; background: #fff; border-bottom: 1px solid #d0d5dd; }
 .system-title { color: #111827; }.system-title h1 { margin: 0; font-size: 21px; font-weight: 600; }.system-title:hover { text-decoration: none; }
-.system-actions { display: flex; align-items: center; gap: 10px; }.system-search { width: 252px; height: 32px; }.profile-mark { width: 30px; height: 30px; display: grid; place-items: center; color: #667085; border: 1px solid #d0d5dd; border-radius: 50%; background: #f2f4f7; font-size: 13px; font-weight: 700; }
+.system-actions { display: flex; align-items: center; gap: 10px; }.system-search { width: 252px; height: 32px; }.notification-button { display: none; }.profile-mark { width: 30px; height: 30px; display: grid; place-items: center; color: #667085; border: 1px solid #d0d5dd; border-radius: 50%; background: #f2f4f7; font-size: 13px; font-weight: 700; }
 .brand { display: flex; align-items: center; gap: 12px; color: #172033; font-weight: 700; font-size: 18px; }
 .brand:hover, .card-link:hover { text-decoration: none; }
 .brand-mark { width: 54px; height: 54px; border-radius: 16px; display: grid; place-items: center; color: white; font-size: 28px; font-weight: 800; background: linear-gradient(145deg, #1264a3, #6a4bc3); box-shadow: 0 10px 28px rgba(35,86,160,.25); }
