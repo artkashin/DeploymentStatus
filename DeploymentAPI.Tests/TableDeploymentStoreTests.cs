@@ -53,6 +53,7 @@ public sealed class TableDeploymentStoreTests
             Assert.Single((await store.QueryAsync(new DeploymentQuery(null, null, null, null, null, null, null, 0, 25))).Items);
             Assert.Equal("3.0.0.0", Assert.Single(await store.GetDesiredAppStateAsync("retaildemo")).InstalledVersion);
             Assert.Equal("retaildemo", Assert.Single(await store.GetCustomersAsync(null)).CustomerId);
+            Assert.Single((await store.GetAsync(deployment.EventId))!.TenantAppStates);
 
             var createdTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             await foreach (var table in service.QueryAsync())
@@ -60,7 +61,7 @@ public sealed class TableDeploymentStoreTests
             foreach (var tableName in TableNames)
                 Assert.Contains(tableName, createdTables);
             foreach (var tableName in TableNames)
-                Assert.Equal(1, await CountAsync(service.GetTableClient(tableName)));
+                Assert.Equal(tableName == "DeploymentOperations" ? 2 : 1, await CountAsync(service.GetTableClient(tableName)));
         }
         finally
         {

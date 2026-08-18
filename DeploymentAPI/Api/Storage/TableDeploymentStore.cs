@@ -70,7 +70,22 @@ public sealed class TableDeploymentStore(TableServiceClient serviceClient) : IDe
             var operation = item.Operations[index];
             await _operations.UpsertEntityAsync(new TableEntity(hash, $"{index:D6}")
             {
+                ["RecordType"] = "operation",
                 ["OperationJson"] = JsonSerializer.Serialize(operation, JsonOptions)
+            }, TableUpdateMode.Replace, cancellationToken);
+        }
+
+        // Azure Table entity properties are limited to 64 KB. Large customer
+        // reports can contain hundreds of tenant/app snapshots, so keep the
+        // immutable run header small and project snapshots into the same
+        // event-partitioned detail table as operations.
+        for (var index = 0; index < item.TenantAppStates.Count; index++)
+        {
+            var state = item.TenantAppStates[index];
+            await _operations.UpsertEntityAsync(new TableEntity(hash, $"state-{index:D6}")
+            {
+                ["RecordType"] = "tenantAppState",
+                ["TenantAppStateJson"] = JsonSerializer.Serialize(state, JsonOptions)
             }, TableUpdateMode.Replace, cancellationToken);
         }
 
@@ -125,9 +140,18 @@ public sealed class TableDeploymentStore(TableServiceClient serviceClient) : IDe
         var filter = TableClient.CreateQueryFilter($"PartitionKey eq {hash}");
         await foreach (var entity in _operations.QueryAsync<TableEntity>(filter, cancellationToken: cancellationToken))
         {
-            var operation = JsonSerializer.Deserialize<DeploymentOperation>(entity.GetString("OperationJson")!, JsonOptions);
+            if (string.Equals(entity.GetString("RecordType"), "tenantAppState", StringComparison.OrdinalIgnoreCase))
+            {
+                var state = JsonSerializer.Deserialize<TenantAppState>(entity.GetString("TenantAppStateJson")!, JsonOptions);
+                if (state is not null) item.TenantAppStates.Add(state);
+                continue;
+            }
+            var operationJson = entity.GetString("OperationJson");
+            if (string.IsNullOrWhiteSpace(operationJson)) continue;
+            var operation = JsonSerializer.Deserialize<DeploymentOperation>(operationJson, JsonOptions);
             if (operation is not null) item.Operations.Add(operation);
         }
+        item.TenantAppStates = item.TenantAppStates.OrderBy(_ => _.TenantId).ThenBy(_ => _.ApplicationName).ToList();
         return item;
     }
 
@@ -294,6 +318,7 @@ public sealed class TableDeploymentStore(TableServiceClient serviceClient) : IDe
         var json = JsonSerializer.Serialize(item, JsonOptions);
         var clone = JsonSerializer.Deserialize<DeploymentEvent>(json, JsonOptions)!;
         clone.Operations = [];
+        clone.TenantAppStates = [];
         return clone;
     }
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
