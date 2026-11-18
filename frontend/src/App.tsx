@@ -52,7 +52,7 @@ function AdaptiveDashboard({ api }: { api: ApiClient }) {
       <div className="baseline-title"><AlertRegular /><strong>Artifact baselines</strong></div>{artifactSources.isLoading ? <Spinner size="tiny" /> : artifactSources.error ? <span>Sources unavailable</span> : (artifactSources.data?.items ?? []).map(item => <Baseline key={item.sourceId} item={item} />)}
     </section>
     <section className="fleet panel"><div className="fleet-toolbar"><strong>Fleet Status Overview</strong><div><Tooltip content="Download a shareable PNG snapshot" relationship="label"><Button appearance="subtle" icon={<ArrowDownloadRegular />} aria-label="Download fleet snapshot as PNG" disabled={customers.isLoading} onClick={() => void downloadFleetSnapshot(latest, artifactSources.data?.items ?? [])} /></Tooltip></div></div>
-      {customers.isLoading ? <Spinner label="Loading fleet…" /> : <FleetTable items={latest} sources={artifactSources.data?.items ?? []} />}
+      {customers.isLoading ? <Spinner label="Loading fleet…" /> : <FleetTable items={latest} />}
     </section>
     <footer className="dashboard-footer"><span>Showing {latest.length} customer{latest.length === 1 ? '' : 's'}</span><span>Last refreshed: {customers.data ? <Time value={customers.data.generatedAt} /> : '—'} <Button appearance="subtle" size="small" icon={<ArrowClockwiseRegular />} aria-label="Refresh dashboard" onClick={() => { void customers.refetch(); void artifactSources.refetch() }} /></span></footer>
   </main>
@@ -131,8 +131,15 @@ function Health({ status }: { status: CustomerLatest['health'] }) { const color 
 function Baseline({ item }: { item: ArtifactSource }) { const label = item.usable ? item.warning ? 'Usable with warning' : 'Usable' : 'Unavailable'; return <div className="baseline"><span>BC{item.bcVersion} · {item.branch}</span><strong>{item.packageVersion || 'No package'}</strong><Badge appearance="filled" color={item.usable && !item.warning ? 'success' : item.usable ? 'warning' : 'danger'}>{label}</Badge><span className="baseline-completed">Build completed <Time value={item.completedAt} /></span>{item.runUrl && <a href={item.runUrl} target="_blank" rel="noreferrer">View build <OpenRegular /></a>}</div> }
 function downloadFleetSnapshot(items: CustomerLatest[], sources: ArtifactSource[]) {
   const rows = items.flatMap(customer => [
-    { kind: 'customer' as const, customer: customer.customerName, bc: customer.bcVersion ? `BC${customer.bcVersion}` : 'Not reported', version: '', date: '', status: '' },
-    ...customer.tenants.map(tenant => ({ kind: 'tenant' as const, customer: `↳  ${tenant.tenantLabel || tenant.tenantId}`, bc: '', version: tenant.installedVersion || 'Unavailable', date: tenant.installedAt ? formatDate(tenant.installedAt) : '—', status: tenant.health }))
+    { kind: 'customer' as const, customer: customer.customerName, bc: customer.bcVersion ? `BC${customer.bcVersion}` : 'Not reported' },
+    ...customer.tenants.map(tenant => ({
+      kind: 'tenant' as const,
+      customer: `↳  ${tenant.tenantLabel || tenant.tenantId}`,
+      adaptiveVersion: tenant.adaptiveInstalledVersion || 'Unavailable',
+      avalaraVersion: tenant.avalaraInstalledVersion || '—',
+      date: tenant.installedAt ? formatDate(tenant.installedAt) : '—',
+      status: tenant.health
+    }))
   ])
   const width = 1440
   const rowHeight = 42
@@ -159,7 +166,15 @@ function downloadFleetSnapshot(items: CustomerLatest[], sources: ArtifactSource[
     text(label, x + 113, 138, '700 12px "Segoe UI", Arial, sans-serif', color)
   })
   context.fillStyle = '#fff'; context.strokeStyle = '#d0d5dd'; context.fillRect(28, 180, 1384, height - 228); context.strokeRect(28, 180, 1384, height - 228)
-  ;[['CUSTOMER NAME', 48], ['BC VERSION', 405], ['INSTALLED VERSION', 755], ['UPDATE DATE', 1040], ['STATUS', 1290]].forEach(([label, x]) => text(String(label), Number(x), 211, '700 12px "Segoe UI", Arial, sans-serif', '#475467'))
+  const columns = [
+    { label: 'CUSTOMER NAME', x: 48 },
+    { label: 'BC VERSION', x: 405 },
+    { label: 'ADAPTIVE APPS VERSION', x: 575 },
+    { label: 'AVALARA AVATAX VERSION', x: 785 },
+    { label: 'UPDATE DATE', x: 1000 },
+    { label: 'STATUS', x: 1240 },
+  ]
+  columns.forEach(({ label, x }) => text(label, x, 211, '700 12px "Segoe UI", Arial, sans-serif', '#475467'))
   rows.forEach((row, index) => {
     const y = 226 + index * rowHeight
     if (row.kind === 'customer') {
@@ -169,8 +184,11 @@ function downloadFleetSnapshot(items: CustomerLatest[], sources: ArtifactSource[
     }
     const [label, color, fill] = status(row.status)
     context.strokeStyle = '#e4e7ec'; context.beginPath(); context.moveTo(28, y + rowHeight); context.lineTo(1412, y + rowHeight); context.stroke()
-    text(row.customer, 62, y + 27); text(row.version, 755, y + 27, '700 14px "Segoe UI", Arial, sans-serif'); text(row.date, 1040, y + 27)
-    context.fillStyle = fill; context.strokeStyle = color; context.beginPath(); context.arc(1336, y + 21, 10, 0, Math.PI * 2); context.fill(); context.stroke(); text(label, 1354, y + 26, '700 12px "Segoe UI", Arial, sans-serif', color)
+    text(row.customer, 62, y + 27)
+    text(row.adaptiveVersion, 575, y + 27, '700 14px "Segoe UI", Arial, sans-serif')
+    text(row.avalaraVersion, 785, y + 27)
+    text(row.date, 1000, y + 27)
+    context.fillStyle = fill; context.strokeStyle = color; context.beginPath(); context.arc(1250, y + 21, 10, 0, Math.PI * 2); context.fill(); context.stroke(); text(label, 1268, y + 26, '700 12px "Segoe UI", Arial, sans-serif', color)
   })
   const link = document.createElement('a')
   link.href = canvas.toDataURL('image/png')
@@ -179,7 +197,37 @@ function downloadFleetSnapshot(items: CustomerLatest[], sources: ArtifactSource[
   link.click()
   link.remove()
 }
-function FleetTable({ items }: { items: CustomerLatest[]; sources: ArtifactSource[] }) { if (!items.length) return <Empty text="No authoritative deployment events have been received yet." />; return <div className="table-wrap fleet-table"><table><thead><tr><th>Customer name</th><th>Customer type</th><th>BC version</th><th>Installed version</th><th>Update date</th><th className="status-column">Status</th></tr></thead><tbody>{items.flatMap(item => [<tr key={item.customerId} className="fleet-customer"><td><Link to={`/customers/${item.customerId}`}><strong>{item.customerName}</strong></Link></td><td>{item.customerType ? <Link to={`/customer-types/${encodeURIComponent(item.customerType)}`}>{item.customerType}</Link> : 'Not reported'}</td><td>{item.bcVersion ? `BC${item.bcVersion}` : 'Not reported'}</td><td></td><td></td><td></td></tr>, ...item.tenants.map(tenant => { const label = tenant.health === 'current' ? 'Current' : tenant.health === 'failed' ? 'Update failed' : tenant.health === 'attention' ? 'Needs attention' : 'Not reported'; return <tr key={`${item.customerId}-${tenant.tenantId}`} className={`fleet-${tenant.health}`}><td className="tenant-name"><Link to={`/customers/${item.customerId}/tenants/${encodeURIComponent(tenant.tenantId)}`}>↳&nbsp;&nbsp;{tenant.tenantLabel || tenant.tenantId}</Link></td><td></td><td></td><td><span className={`version-pill ${tenant.health === 'current' ? 'current' : tenant.health === 'failed' ? 'failed' : ''}`}>{tenant.installedVersion || 'Unavailable'}</span></td><td>{tenant.installedAt ? <Time value={tenant.installedAt} /> : '—'}</td><td className="status-column"><Tooltip content={label} relationship="label">{tenant.health === 'current' ? <CheckmarkCircleRegular className="status-icon current" aria-label={label} /> : <WarningRegular className={`status-icon ${tenant.health === 'failed' ? 'failed' : 'warning'}`} aria-label={label} />}</Tooltip><span className="sr-only">{label}</span></td></tr> })])}</tbody></table></div> }
+function FleetTable({ items }: { items: CustomerLatest[] }) {
+  if (!items.length) return <Empty text="No authoritative deployment events have been received yet." />
+  return <div className="table-wrap fleet-table"><table>
+    <thead><tr>
+      <th>Customer name</th><th>Customer type</th><th>BC version</th>
+      <th>Adaptive apps version</th><th>Avalara AvaTax version</th><th>Update date</th>
+      <th className="status-column">Status</th>
+    </tr></thead>
+    <tbody>{items.flatMap(item => [
+      <tr key={item.customerId} className="fleet-customer">
+        <td><Link to={`/customers/${item.customerId}`}><strong>{item.customerName}</strong></Link></td>
+        <td>{item.customerType ? <Link to={`/customer-types/${encodeURIComponent(item.customerType)}`}>{item.customerType}</Link> : 'Not reported'}</td>
+        <td>{item.bcVersion ? `BC${item.bcVersion}` : 'Not reported'}</td>
+        <td></td><td></td><td></td><td></td>
+      </tr>,
+      ...item.tenants.map(tenant => {
+        const label = tenant.health === 'current' ? 'Current' : tenant.health === 'failed' ? 'Update failed' : tenant.health === 'attention' ? 'Needs attention' : 'Not reported'
+        return <tr key={`${item.customerId}-${tenant.tenantId}`} className={`fleet-${tenant.health}`}>
+          <td className="tenant-name"><Link to={`/customers/${item.customerId}/tenants/${encodeURIComponent(tenant.tenantId)}`}>↳&nbsp;&nbsp;{tenant.tenantLabel || tenant.tenantId}</Link></td>
+          <td></td><td></td>
+          <td><span className={`version-pill ${tenant.health === 'current' ? 'current' : tenant.health === 'failed' ? 'failed' : ''}`}>{tenant.adaptiveInstalledVersion || 'Unavailable'}</span></td>
+          <td>{tenant.avalaraInstalledVersion || '—'}</td>
+          <td>{tenant.installedAt ? <Time value={tenant.installedAt} /> : '—'}</td>
+          <td className="status-column"><Tooltip content={label} relationship="label">
+            {tenant.health === 'current' ? <CheckmarkCircleRegular className="status-icon current" aria-label={label} /> : <WarningRegular className={`status-icon ${tenant.health === 'failed' ? 'failed' : 'warning'}`} aria-label={label} />}
+          </Tooltip><span className="sr-only">{label}</span></td>
+        </tr>
+      })
+    ])}</tbody>
+  </table></div>
+}
 function versionParts(value?: string) { return (value || '').split('.').map(part => Number.parseInt(part, 10)).map(part => Number.isFinite(part) ? part : 0) }
 function isNewerVersion(left?: string, right?: string) { const a = versionParts(left); const b = versionParts(right); for (let index = 0; index < Math.max(a.length, b.length); index += 1) { if ((a[index] || 0) !== (b[index] || 0)) return (a[index] || 0) > (b[index] || 0) } return false }
 function DesiredAppTable({ grouped }: { grouped: Record<string, import('./types').DesiredAppState[]> }) { if (Object.keys(grouped).length === 0) return <Empty text="No desired-app inventory has been reported by an execute deployment yet." />; return <>{Object.entries(grouped).map(([tenant, states]) => <div className="tenant" key={tenant}><h3>{tenant}</h3><div className="table-wrap"><table className="desired-app-table"><thead><tr><th>Application</th><th>Desired version</th><th>Installed version</th><th>Update date</th><th>Status</th></tr></thead><tbody>{states!.map(state => { const label = state.state === 'current' ? 'Current' : state.state === 'failed' ? 'Update failed' : state.state === 'outdated' ? 'Outdated' : state.state === 'planned' ? 'Planned' : 'Installed version unavailable'; const effectiveDesiredVersion = state.state === 'current' && isNewerVersion(state.installedVersion, state.desiredVersion) ? state.installedVersion : state.desiredVersion; return <tr key={`${state.tenantId}-${state.applicationId}`} className={`app-${state.state}`}><td><strong>{state.applicationName}</strong>{state.safeMessage && <small>{state.safeMessage}</small>}</td><td>{effectiveDesiredVersion || 'Package unavailable'}</td><td>{state.installedVersion || 'Unavailable'}</td><td>{state.installedAt ? <Time value={state.installedAt} /> : '—'}</td><td>{label}</td></tr> })}</tbody></table></div></div>)}</> }

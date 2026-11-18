@@ -339,7 +339,17 @@
       },
       "TenantLatest": {
         "type": "object", "required": ["tenantId", "desiredAppCount", "currentAppCount", "attentionAppCount", "failedAppCount", "health"],
-        "properties": { "tenantId": { "type": "string" }, "tenantLabel": { "type": ["string", "null"] }, "installedVersion": { "type": ["string", "null"] }, "installedAt": { "type": ["string", "null"], "format": "date-time" }, "desiredAppCount": { "type": "integer" }, "currentAppCount": { "type": "integer" }, "attentionAppCount": { "type": "integer" }, "failedAppCount": { "type": "integer" }, "health": { "enum": ["current", "attention", "failed", "unknown"] } }
+        "properties": {
+          "tenantId": { "type": "string" },
+          "tenantLabel": { "type": ["string", "null"] },
+          "installedVersion": { "type": ["string", "null"] },
+          "adaptiveInstalledVersion": { "type": ["string", "null"], "description": "Observed installed version of Adaptive apps, or Multiple versions when their observed versions differ." },
+          "avalaraInstalledVersion": { "type": ["string", "null"], "description": "Observed installed version of the base Avalara AvaTax app." },
+          "installedAt": { "type": ["string", "null"], "format": "date-time" },
+          "desiredAppCount": { "type": "integer" }, "currentAppCount": { "type": "integer" },
+          "attentionAppCount": { "type": "integer" }, "failedAppCount": { "type": "integer" },
+          "health": { "enum": ["current", "attention", "failed", "unknown"] }
+        }
       },
       "DesiredAppState": {
         "type": "object",

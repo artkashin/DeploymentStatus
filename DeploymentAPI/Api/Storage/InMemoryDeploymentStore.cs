@@ -113,9 +113,47 @@ public sealed class InMemoryDeploymentStore : IDeploymentStore
 
     internal static TenantLatestStatus TenantHealth(IEnumerable<CustomerDesiredAppState> states)
     {
-        var values = states.ToList(); var failed = values.Count(state => state.State == "failed"); var current = values.Count(state => state.State == "current"); var attention = values.Count - current - failed;
-        var versions = values.Select(state => state.InstalledVersion).Where(version => !string.IsNullOrWhiteSpace(version)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        return new TenantLatestStatus { TenantId = values[0].TenantId, TenantLabel = values[0].TenantLabel, InstalledVersion = versions.Count == 1 ? versions[0] : versions.Count == 0 ? null : "Multiple versions", InstalledAt = values.Where(state => state.InstalledAt.HasValue).Select(state => state.InstalledAt).Max(), DesiredAppCount = values.Count, CurrentAppCount = current, AttentionAppCount = attention, FailedAppCount = failed, Health = failed > 0 ? "failed" : attention > 0 ? "attention" : values.Count > 0 ? "current" : "unknown" };
+        var values = states.ToList();
+        var failed = values.Count(state => state.State == "failed");
+        var current = values.Count(state => state.State == "current");
+        var attention = values.Count - current - failed;
+        var avalara = values.FirstOrDefault(state => IsAvalaraAvaTax(state.ApplicationId, state.ApplicationName));
+        return new TenantLatestStatus
+        {
+            TenantId = values[0].TenantId,
+            TenantLabel = values[0].TenantLabel,
+            InstalledVersion = SummarizeInstalledVersions(values.Select(state => state.InstalledVersion)),
+            AdaptiveInstalledVersion = SummarizeInstalledVersions(values
+                .Where(state => IsAdaptiveApp(state.Publisher, state.ApplicationId, state.ApplicationName))
+                .Select(state => state.InstalledVersion)),
+            AvalaraInstalledVersion = avalara?.InstalledVersion,
+            InstalledAt = values.Select(state => state.InstalledAt).Max(),
+            DesiredAppCount = values.Count,
+            CurrentAppCount = current,
+            AttentionAppCount = attention,
+            FailedAppCount = failed,
+            Health = failed > 0 ? "failed" : attention > 0 ? "attention" : values.Count > 0 ? "current" : "unknown"
+        };
+    }
+
+    private static bool IsAvalaraAvaTax(string? appId, string appName)
+        => string.Equals(appId, "5fedf952-2450-4bce-b578-f3b7c13cd9a9", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(appName, "Avalara AvaTax", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsAdaptiveApp(string? publisher, string? appId, string appName)
+        => string.Equals(publisher, "Adaptive Business Solutions Inc", StringComparison.OrdinalIgnoreCase)
+            && !IsAvalaraAvaTax(appId, appName);
+
+    private static string? SummarizeInstalledVersions(IEnumerable<string?> versions)
+    {
+        var distinct = versions.Where(version => !string.IsNullOrWhiteSpace(version))
+            .Distinct(StringComparer.OrdinalIgnoreCase).Take(2).ToList();
+        return distinct.Count switch
+        {
+            0 => null,
+            1 => distinct[0],
+            _ => "Multiple versions"
+        };
     }
 
     internal static IEnumerable<TenantLatestStatus> TenantHealthFromOperations(IEnumerable<DeploymentOperation> operations)
@@ -130,7 +168,8 @@ public sealed class InMemoryDeploymentStore : IDeploymentStore
                     .Select(application => application.Last())
                     .ToList();
                 var failed = latestByApplication.Count(operation => operation.Outcome == DeploymentOutcome.Failed);
-                var current = latestByApplication.Count(IsVerified);
+                var verified = latestByApplication.Where(IsVerified).ToList();
+                var current = verified.Count;
                 var attention = latestByApplication.Count - current - failed;
                 var observedVersions = latestByApplication.Select(operation => operation.ObservedVersion)
                     .Where(version => !string.IsNullOrWhiteSpace(version)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
@@ -142,6 +181,10 @@ public sealed class InMemoryDeploymentStore : IDeploymentStore
                     // A mixed or failed historic deployment cannot honestly claim one
                     // installed version. New snapshot reports supply this field directly.
                     InstalledVersion = failed == 0 && attention == 0 && observedVersions.Count == 1 ? observedVersions[0] : null,
+                    AdaptiveInstalledVersion = SummarizeInstalledVersions(verified
+                        .Where(operation => IsAdaptiveApp(operation.Publisher, operation.ApplicationId, operation.ApplicationName))
+                        .Select(operation => operation.ObservedVersion)),
+                    AvalaraInstalledVersion = verified.FirstOrDefault(operation => IsAvalaraAvaTax(operation.ApplicationId, operation.ApplicationName))?.ObservedVersion,
                     InstalledAt = null,
                     DesiredAppCount = 0,
                     CurrentAppCount = 0,

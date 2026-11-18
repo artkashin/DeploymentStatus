@@ -40,20 +40,39 @@ public sealed class TableDeploymentStoreTests
                     new DeploymentOperation
                     {
                         Scope = "tenant", TenantId = "default", TenantLabel = "Default",
-                        ApplicationId = "retail", ApplicationName = "Retail", Action = "verify",
+                        ApplicationId = "avalara-tax", ApplicationName = "AvalaraTax", Publisher = "Adaptive Business Solutions Inc", Action = "verify",
                         Outcome = DeploymentOutcome.Success, TargetVersion = "3.0.0.0", ObservedVersion = "3.0.0.0"
                     }
                 ],
-                TenantAppStates = [new TenantAppState { TenantId = "default", TenantLabel = "Default", ApplicationId = "retail", ApplicationName = "Retail", DesiredVersion = "3.0.0.0", InstalledVersion = "3.0.0.0", ObservedAt = started.AddMinutes(3), State = "current", LastOutcome = DeploymentOutcome.Success }]
+                TenantAppStates =
+                [
+                    new TenantAppState
+                    {
+                        TenantId = "default", TenantLabel = "Default", ApplicationId = "avalara-tax", ApplicationName = "AvalaraTax",
+                        Publisher = "Adaptive Business Solutions Inc", DesiredVersion = "3.0.0.0", InstalledVersion = "3.0.0.0",
+                        ObservedAt = started.AddMinutes(3), State = "current", LastOutcome = DeploymentOutcome.Success
+                    },
+                    new TenantAppState
+                    {
+                        TenantId = "default", TenantLabel = "Default", ApplicationId = "5fedf952-2450-4bce-b578-f3b7c13cd9a9", ApplicationName = "Avalara AvaTax",
+                        Publisher = "Avalara", DesiredVersion = "27.0.52.0", InstalledVersion = "27.0.52.0", State = "current"
+                    }
+                ]
             };
 
             Assert.True(await store.RegisterAsync(deployment));
             Assert.False(await store.RegisterAsync(deployment));
             Assert.Equal(deployment.EventId, (await store.GetAsync(deployment.EventId))?.EventId);
             Assert.Single((await store.QueryAsync(new DeploymentQuery(null, null, null, null, null, null, null, 0, 25))).Items);
-            Assert.Equal("3.0.0.0", Assert.Single(await store.GetDesiredAppStateAsync("retaildemo")).InstalledVersion);
-            Assert.Equal("retaildemo", Assert.Single(await store.GetCustomersAsync(null)).CustomerId);
-            Assert.Single((await store.GetAsync(deployment.EventId))!.TenantAppStates);
+            var states = await store.GetDesiredAppStateAsync("retaildemo");
+            Assert.Equal("3.0.0.0", Assert.Single(states, state => state.ApplicationName == "AvalaraTax").InstalledVersion);
+            var customer = Assert.Single(await store.GetCustomersAsync(null));
+            Assert.Equal("retaildemo", customer.CustomerId);
+            var tenant = Assert.Single(customer.Tenants);
+            Assert.Equal("3.0.0.0", tenant.AdaptiveInstalledVersion);
+            Assert.Equal("27.0.52.0", tenant.AvalaraInstalledVersion);
+            Assert.Equal("Multiple versions", tenant.InstalledVersion);
+            Assert.Equal(2, (await store.GetAsync(deployment.EventId))!.TenantAppStates.Count);
 
             var createdTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             await foreach (var table in service.QueryAsync())
@@ -61,7 +80,12 @@ public sealed class TableDeploymentStoreTests
             foreach (var tableName in TableNames)
                 Assert.Contains(tableName, createdTables);
             foreach (var tableName in TableNames)
-                Assert.Equal(tableName == "DeploymentOperations" ? 2 : 1, await CountAsync(service.GetTableClient(tableName)));
+                Assert.Equal(tableName switch
+                {
+                    "DeploymentOperations" => 3,
+                    "CustomerDesiredState" => 2,
+                    _ => 1
+                }, await CountAsync(service.GetTableClient(tableName)));
         }
         finally
         {

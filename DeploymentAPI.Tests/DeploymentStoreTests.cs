@@ -83,6 +83,68 @@ public sealed class DeploymentStoreTests
     }
 
     [Fact]
+    public async Task Fleet_reports_verified_versions_from_historic_operations_by_app_family()
+    {
+        var store = new InMemoryDeploymentStore();
+        var item = Event("AdaptiveBS~CIApp:301:1:tappers:execute", DeploymentRunStatus.Partial, DeploymentOutcome.Success, "1.0.1318.0");
+        item.TenantAppStates = [];
+        item.Operations[0].ApplicationName = "AvalaraTax";
+        item.Operations[0].Publisher = "Adaptive Business Solutions Inc";
+        item.Operations.AddRange([
+            new DeploymentOperation
+            {
+                Scope = "tenant", TenantId = "default", ApplicationName = "Avalara AvaTax", Publisher = "Avalara",
+                Action = "verify", Outcome = DeploymentOutcome.AlreadyCurrent, ObservedVersion = "27.0.52.0"
+            },
+            new DeploymentOperation
+            {
+                Scope = "tenant", TenantId = "default", ApplicationName = "Retail", Publisher = "Adaptive Business Solutions Inc",
+                Action = "upgrade", Outcome = DeploymentOutcome.Failed, TargetVersion = "1.0.1319.0"
+            }
+        ]);
+        await store.RegisterAsync(item);
+
+        var tenant = Assert.Single(Assert.Single(await store.GetCustomersAsync(null)).Tenants);
+        Assert.Equal("1.0.1318.0", tenant.AdaptiveInstalledVersion);
+        Assert.Equal("27.0.52.0", tenant.AvalaraInstalledVersion);
+        Assert.Equal("failed", tenant.Health);
+        Assert.Null(tenant.InstalledAt);
+    }
+
+    [Theory]
+    [InlineData("1.0.1318.0", "1.0.1318.0")]
+    [InlineData("1.0.1317.0", "Multiple versions")]
+    public async Task Fleet_summarizes_only_Adaptive_apps_with_an_observed_version(string secondVersion, string expectedVersion)
+    {
+        var store = new InMemoryDeploymentStore();
+        var item = Event("AdaptiveBS~CIApp:302:1:tappers:execute", DeploymentRunStatus.Partial, DeploymentOutcome.Success, "1.0.1318.0");
+        item.TenantAppStates[0].Publisher = "Adaptive Business Solutions Inc";
+        item.TenantAppStates.AddRange([
+            new TenantAppState
+            {
+                TenantId = "default", ApplicationName = "AvalaraTax", Publisher = "Adaptive Business Solutions Inc",
+                InstalledVersion = secondVersion, State = "current"
+            },
+            new TenantAppState
+            {
+                TenantId = "default", ApplicationName = "Pending Adaptive app", Publisher = "Adaptive Business Solutions Inc",
+                DesiredVersion = "1.0.1319.0", State = "unavailable"
+            },
+            new TenantAppState
+            {
+                TenantId = "default", ApplicationName = "Third-party Connector", Publisher = "Other Publisher",
+                InstalledVersion = "5.0.0.0", State = "current"
+            }
+        ]);
+        await store.RegisterAsync(item);
+
+        var tenant = Assert.Single(Assert.Single(await store.GetCustomersAsync(null)).Tenants);
+        Assert.Equal(expectedVersion, tenant.AdaptiveInstalledVersion);
+        Assert.Null(tenant.AvalaraInstalledVersion);
+        Assert.Equal("attention", tenant.Health);
+    }
+
+    [Fact]
     public void Validation_rejects_invalid_contract()
     {
         var item = Event("", DeploymentRunStatus.Success, DeploymentOutcome.Success, "1");

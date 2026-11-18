@@ -184,6 +184,8 @@ public sealed class TenantLatestStatus
     public required string TenantId { get; init; }
     public string? TenantLabel { get; init; }
     public string? InstalledVersion { get; init; }
+    public string? AdaptiveInstalledVersion { get; init; }
+    public string? AvalaraInstalledVersion { get; init; }
     public DateTimeOffset? InstalledAt { get; init; }
     public int DesiredAppCount { get; init; }
     public int CurrentAppCount { get; init; }
