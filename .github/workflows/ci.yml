@@ -30,7 +30,7 @@ jobs:
       - run: dotnet test DeploymentStatus.slnx --configuration Release
         env:
           AZURITE_CONNECTION_STRING: UseDevelopmentStorage=true
-      - run: npx --yes @redocly/cli lint DeploymentAPI/openapi.json
+      - run: npx --yes @redocly/cli@2.79.0 lint DeploymentAPI/openapi.json
       - name: Validate Bicep
         run: az bicep build --file infra/main.bicep --stdout > /dev/null
       - name: Validate infrastructure scripts and access mapping
